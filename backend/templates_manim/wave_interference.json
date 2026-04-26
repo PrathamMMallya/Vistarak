@@ -1,0 +1,18 @@
+{
+  "template_id": "physics.wave_interference",
+  "title": "Wave Interference",
+  "description": "Demonstrates wave superposition with two sinusoidal waves and their resultant. Wave 1 (blue) and Wave 2 (green) have equal amplitude = 1.0 and frequency = 1.0, but differ by a phase of π (destructive interference). Their sum is shown as a thick yellow resultant wave. A ValueTracker animates the time parameter over 4π, making all three waves propagate in real time.",
+  "variables": {
+    "amplitude": { "default": 1.0, "type": "float", "description": "Amplitude of each individual wave" },
+    "frequency": { "default": 1.0, "type": "float", "description": "Angular frequency of both waves" },
+    "phase_difference": { "default": 3.14159, "type": "float", "description": "Phase offset between wave 1 and wave 2 (π = destructive)" }
+  },
+  "key_objects": [
+    "Axes (x: 0–10, y: −3 to 3)",
+    "Wave 1 (blue, always_redraw)",
+    "Wave 2 (green, always_redraw)",
+    "Resultant wave (yellow, thick, always_redraw)",
+    "ValueTracker (time parameter)"
+  ],
+  "what_to_modify": "Change the phase_difference (0 for constructive, π/2 for partial), adjust amplitude or frequency, add more waves, show beat patterns by using slightly different frequencies, or add labels showing constructive/destructive regions."
+}

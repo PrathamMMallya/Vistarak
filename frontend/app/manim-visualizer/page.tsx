@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Film, Wand2, ArrowLeft } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Film, Wand2, ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionCard } from "@/components/shared/section-card";
@@ -72,6 +72,13 @@ export default function ManimVisualizerPage() {
   const [threadId, setThreadId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll chat to bottom when messages change
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
   const handleTemplateSelect = async (template: typeof TEMPLATES[0]) => {
     setSelectedTemplate(template);
     setLoading(true);
@@ -84,27 +91,58 @@ export default function ManimVisualizerPage() {
     setPrompt("");
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/visualization/manim/generate/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          template_id: template.id,
-          domain: template.domain,
-          render_only: true,
+      // Fetch template metadata and render in parallel
+      const [renderRes, infoRes] = await Promise.all([
+        fetch("http://127.0.0.1:8000/visualization/manim/generate/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            template_id: template.id,
+            domain: template.domain,
+            render_only: true,
+          }),
         }),
-      });
+        fetch(`http://127.0.0.1:8000/visualization/manim/template-info/?id=${encodeURIComponent(template.id)}`)
+      ]);
 
-      const data = await res.json();
-      if (!res.ok || data.status !== "success") {
-        throw new Error(data?.error || "Failed to render template");
+      const renderData = await renderRes.json();
+      if (!renderRes.ok || renderData.status !== "success") {
+        throw new Error(renderData?.error || "Failed to render template");
       }
 
-      setThreadId(data.thread_id || "");
-      setProvider(data.provider || "Template");
-      setCode(data.code || "");
-      setVideoUrl(`http://127.0.0.1:8000${data.video_url}`);
+      setThreadId(renderData.thread_id || "");
+      setProvider(renderData.provider || "Template");
+      setCode(renderData.code || "");
+      setVideoUrl(`http://127.0.0.1:8000${renderData.video_url}`);
       setStatus("Template rendered successfully.");
-      setMessages([{ role: "assistant", text: `Template loaded: ${template.title}. What would you like to change?` }]);
+
+      // Build rich description from JSON metadata
+      let assistantMsg = `📐 **${template.title}** loaded successfully!\n\n`;
+      
+      if (infoRes.ok) {
+        const info = await infoRes.json();
+        if (info.status === "success") {
+          assistantMsg += `${info.description}\n\n`;
+
+          if (info.variables && Object.keys(info.variables).length > 0) {
+            assistantMsg += `🔧 **Variables you can tweak:**\n`;
+            for (const [key, val] of Object.entries(info.variables) as [string, any][]) {
+              assistantMsg += `  • ${key} = ${val.default} — ${val.description}\n`;
+            }
+            assistantMsg += `\n`;
+          }
+
+          if (info.what_to_modify) {
+            assistantMsg += `💡 **Suggestions:** ${info.what_to_modify}`;
+          }
+        } else {
+          assistantMsg += `What would you like to modify?`;
+        }
+      } else {
+        assistantMsg += `What would you like to modify?`;
+      }
+
+      setMessages([{ role: "assistant", text: assistantMsg }]);
     } catch (e) {
       setStatus(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     } finally {
@@ -119,10 +157,10 @@ export default function ManimVisualizerPage() {
     setMessages((prev) => [...prev, { role: "user", text: userPrompt }]);
     setPrompt("");
     setLoading(true);
-    setStatus("Updating animation with LLM...");
+    setStatus("Processing...");
     
     try {
-      const res = await fetch("http://127.0.0.1:8000/visualization/manim/generate/", {
+      const res = await fetch("http://127.0.0.1:8000/visualization/manim/chat/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -135,18 +173,26 @@ export default function ManimVisualizerPage() {
 
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        throw new Error(data?.error || "Failed to generate animation");
+        throw new Error(data?.error || "Request failed");
       }
 
-      setThreadId(data.thread_id || threadId);
-      setProvider(data.provider || "");
-      setCode(data.code || "");
-      setVideoUrl(`http://127.0.0.1:8000${data.video_url}`);
-      setStatus("Animation updated successfully.");
-      setMessages((prev) => [...prev, { role: "assistant", text: "I've updated the animation based on your request." }]);
+      if (data.type === "explanation") {
+        // Text-only reply — no video update
+        setStatus("");
+        setMessages((prev) => [...prev, { role: "assistant", text: data.message }]);
+      } else {
+        // Animation response — update video
+        setThreadId(data.thread_id || threadId);
+        setProvider(data.provider || "");
+        setCode(data.code || "");
+        setVideoUrl(`http://127.0.0.1:8000${data.video_url}`);
+        setStatus("Animation updated successfully.");
+        setMessages((prev) => [...prev, { role: "assistant", text: "✅ Animation updated! Check the video on the right." }]);
+      }
     } catch (e) {
-      setStatus(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
-      setMessages((prev) => [...prev, { role: "assistant", text: `Error: ${e instanceof Error ? e.message : "Unknown error"}` }]);
+      const errMsg = e instanceof Error ? e.message : "Unknown error";
+      setStatus(`Error: ${errMsg}`);
+      setMessages((prev) => [...prev, { role: "assistant", text: `❌ Error: ${errMsg}` }]);
     } finally {
       setLoading(false);
     }
@@ -222,7 +268,7 @@ export default function ManimVisualizerPage() {
           </Button>
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-8">
-            <SectionCard title="Interactive Chat" description="Modify this template with AI" icon={<Wand2 size={18} />}>
+            <SectionCard title="Interactive Chat" description="Ask questions or request animation changes" icon={<Wand2 size={18} />}>
               <div className="flex flex-col h-[600px]">
                 <div className="flex-1 overflow-y-auto space-y-4 p-4 border border-border rounded-lg bg-black/20 mb-4 scrollbar-thin">
                   {messages.map((msg, idx) => (
@@ -247,13 +293,14 @@ export default function ManimVisualizerPage() {
                       </div>
                     </div>
                   )}
+                  <div ref={chatEndRef} />
                 </div>
 
                 <div className="flex gap-2 items-end">
                   <Textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Ask to change variables, colors, or add elements..."
+                    placeholder="Ask a question or request an animation change..."
                     className="min-h-[60px] max-h-[120px] resize-y rounded-xl border-border bg-black/40 focus-visible:ring-accent"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
@@ -267,7 +314,7 @@ export default function ManimVisualizerPage() {
                     onClick={handleChatSubmit} 
                     disabled={loading || !prompt.trim()}
                   >
-                    Send
+                    <Send size={18} />
                   </Button>
                 </div>
               </div>
@@ -292,20 +339,6 @@ export default function ManimVisualizerPage() {
                     <span>{loading ? "Rendering video..." : "No video yet."}</span>
                   </div>
                 )}
-
-                {code ? (
-                  <details className="group border border-border rounded-lg bg-black/20">
-                    <summary className="text-sm font-medium cursor-pointer text-muted-foreground hover:text-white transition-colors p-4 flex items-center justify-between">
-                      <span>View Generated Python Code</span>
-                      <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
-                    </summary>
-                    <div className="p-4 pt-0 border-t border-border/50">
-                      <pre className="text-xs whitespace-pre-wrap rounded-md bg-black/40 p-4 overflow-auto max-h-[300px] text-green-400 font-mono scrollbar-thin">
-                        {code}
-                      </pre>
-                    </div>
-                  </details>
-                ) : null}
               </div>
             </SectionCard>
           </div>

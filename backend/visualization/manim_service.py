@@ -35,6 +35,7 @@ RULES — follow every single one:
 11. Do NOT use end_angle for Arc/Angle; use start_angle and angle instead.
 12. Use 3D points (x, y, 0) for VMobject/Line points; do not use 2D tuples.
 13. Do NOT use Tex(...) or MathTex(...); use Text(...) or MarkupText(...) only.
+14. Do NOT pass `z_range` to 2D coordinate systems like `Axes` or `NumberPlane`; use `ThreeDAxes` if 3D is needed.
 """
 
 REVIEW_SYSTEM_PROMPT = """\
@@ -51,7 +52,7 @@ Rules:
 - Do NOT introduce external imports beyond manim.
 """
 
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama3-70b-8192")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 MAX_BASE_CODE_PROMPT_CHARS = 9000
@@ -186,6 +187,8 @@ def _validate_generated_code_or_raise(code: str) -> None:
         )
     if re.search(r"\b(MathTex|Tex)\s*\(", code):
         raise ValueError("Invalid pipeline rule: Tex/MathTex are not allowed; use Text/MarkupText.")
+    if re.search(r"\b(Axes|NumberPlane)\s*\([^)]*z_range", code):
+        raise ValueError("Invalid Manim API: z_range is not supported for 2D Axes/NumberPlane; use ThreeDAxes instead.")
 
 
 def _build_user_prompt(prompt: str, domain: str) -> str:
@@ -269,6 +272,7 @@ def _build_retry_user_prompt(prompt: str, domain: str, error_hint: str) -> str:
         "- Do NOT call add_points(...); for paths use add_points_as_corners([...]) or set_points_as_corners([...]).\n"
         "- Use 3D points (x, y, 0) when setting points for VMobject/Line/Path; do not pass 2D tuples.\n"
         "- Do NOT use Tex/MathTex; render formulas with Text/MarkupText and unicode symbols.\n"
+        "- Do NOT pass `z_range` to 2D coordinate systems like `Axes` or `NumberPlane`; use `ThreeDAxes` if 3D is needed.\n"
         "- Output ONLY valid Python code, one Scene class named GeneratedScene."
     )
 
@@ -296,6 +300,7 @@ def _call_groq(user_prompt: str, model: str, system_prompt: str) -> str:
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         },
         method="POST",
     )

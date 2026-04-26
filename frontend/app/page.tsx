@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Video, FileText, BookOpen, Zap, Mic2, Calculator, Languages, Sparkles, ArrowRight } from "lucide-react"
+import { Video, FileText, BookOpen, Zap, Mic2, Calculator, Languages, Sparkles, ArrowRight, Film } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const modules = [
@@ -61,6 +61,14 @@ const modules = [
     icon: Languages,
     color: "from-indigo-500 to-indigo-600",
     href: "/summarizer",
+  },
+  {
+    id: "manim-visualizer",
+    title: "Manim Visualizer",
+    description: "Generate and customise animated math & physics visualizations with AI",
+    icon: Film,
+    color: "from-rose-500 to-rose-600",
+    href: "/manim-visualizer",
   },
 ]
 

@@ -1,0 +1,18 @@
+{
+  "template_id": "math.gradient_descent",
+  "title": "Gradient Descent",
+  "description": "Animates gradient descent on the parabola y = x². A red dot starts at x = 3.0 and iteratively moves toward the minimum using a learning rate of 0.15. Each of the 5 steps displays a yellow gradient arrow showing descent direction, along with a text label reporting the current x, gradient, and loss. Ends with a \"Reached Minimum!\" label in green.",
+  "variables": {
+    "learning_rate": { "default": 0.15, "type": "float", "description": "Step size multiplier for each gradient update" },
+    "start_x": { "default": 3.0, "type": "float", "description": "Initial x-position of the descending point" },
+    "steps": { "default": 5, "type": "int", "description": "Number of gradient descent iterations (loop count)" }
+  },
+  "key_objects": [
+    "Axes (x: -4 to 4, y: -1 to 10)",
+    "Graph of y = x² (blue)",
+    "Dot (red, moving point)",
+    "Arrow (yellow, gradient direction)",
+    "Text labels (step info, final \"Reached Minimum!\")"
+  ],
+  "what_to_modify": "You can change the learning_rate, start_x, number of steps, the function (e.g. x³ − 3x), colors of the dot or arrows, add a loss-over-time subplot, or show the gradient value as a dynamic label."
+}

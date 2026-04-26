@@ -1,0 +1,17 @@
+{
+  "template_id": "physics.electric_field",
+  "title": "Electric Field & Potential",
+  "description": "Visualizes the electric field of a dipole (positive charge at (−2,0) and negative charge at (2,0)). Field vectors are computed using Coulomb's inverse-square law with a softening factor of 0.1 to avoid singularities. An ArrowVectorField renders the combined E-field across a grid from x ∈ [−6, 6] and y ∈ [−4, 4].",
+  "variables": {
+    "charge1_position": { "default": [-2, 0], "type": "list[float]", "description": "Position of the positive charge" },
+    "charge2_position": { "default": [2, 0], "type": "list[float]", "description": "Position of the negative charge" },
+    "softening": { "default": 0.1, "type": "float", "description": "Softening factor added to distance³ to avoid division by zero" }
+  },
+  "key_objects": [
+    "Dot (red, + charge at LEFT*2)",
+    "Dot (blue, − charge at RIGHT*2)",
+    "Text labels (\"+\" and \"−\")",
+    "ArrowVectorField (combined E-field)"
+  ],
+  "what_to_modify": "Move charge positions, add a third charge, change the grid density, add equipotential contour lines, color-code arrows by field strength, or animate a test charge moving along field lines."
+}
