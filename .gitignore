@@ -83,6 +83,11 @@ venv/
 
 # Ignore ONLY emotion model folder
 backend/context_engine/emotion_model/
+backend/media/
+backend/templates_manim/media/
+backend/main/__pycache__/
+backend/modules/__pycache__/
+backend/visualization/__pycache__/
 
 # Python cache
 __pycache__/
@@ -90,3 +95,6 @@ __pycache__/
 
 # Virtual environments
 venv/
+
+
+

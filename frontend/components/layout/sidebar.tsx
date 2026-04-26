@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Languages, Video, BookOpen, Zap, Mic2, Calculator, Settings, Home } from "lucide-react"
+import { FileText, Languages, Video, BookOpen, Zap, Mic2, Calculator, Settings, Home, Film } from "lucide-react"
 
 const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },
@@ -13,6 +13,7 @@ const navItems = [
   { icon: Zap, label: "Context Translation", href: "/context-engine" },
   { icon: Mic2, label: "Text-to-Speech", href: "/tts" },
   { icon: Calculator, label: "Math Visualizer", href: "/math-visualizer" },
+  { icon: Film, label: "Manim Visualizer", href: "/manim-visualizer" },
   { icon: Languages, label: "Summarizer", href: "/summarizer" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ]
