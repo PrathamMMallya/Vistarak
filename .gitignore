@@ -94,7 +94,6 @@ __pycache__/
 *.pyc
 
 # Virtual environments
-venv/
 .kiro/
 
 
