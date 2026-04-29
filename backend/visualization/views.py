@@ -6,6 +6,8 @@ import os
 import re
 import shutil
 import uuid
+import requests
+from urllib.parse import quote_plus
 from typing import Any, Optional
 
 # In-memory store for demo purposes
@@ -56,6 +58,21 @@ def _extract_thread_user_requests(thread: dict[str, Any]) -> list[str]:
     return requests
 
 
+def _rewrite_media_urls(obj: Any, base_url: str) -> Any:
+    """Recursively rewrite media paths like '/media/...' to absolute URLs
+    pointing at `base_url` (e.g. http://127.0.0.1:8010).
+    """
+    if isinstance(obj, str):
+        if obj.startswith("/media/") or obj.startswith("media/"):
+            return f"{base_url.rstrip('/')}/{obj.lstrip('/')}"
+        return obj
+    if isinstance(obj, dict):
+        return {k: _rewrite_media_urls(v, base_url) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_rewrite_media_urls(v, base_url) for v in obj]
+    return obj
+
+
 @csrf_exempt
 def add_equation(request):
     """
@@ -83,122 +100,23 @@ def list_equations(request):
 
 @csrf_exempt
 def manim_generate(request):
+    MANIM_API_BASE = os.environ.get("MANIM_API_BASE_URL", "http://127.0.0.1:8010")
+    target = f"{MANIM_API_BASE.rstrip('/')}/manim/generate/"
+
     if request.method != "POST":
         return JsonResponse({"error": "Only POST allowed"}, status=405)
 
     try:
-        data = json.loads(request.body or b"{}")
-        prompt = (data.get("prompt") or "").strip()
-        domain = (data.get("domain") or "Mathematics").strip() or "Mathematics"
-        base_code_id = (data.get("base_code_id") or data.get("template_id") or "").strip()
-        thread_id = (data.get("thread_id") or "").strip()
-        new_animation = bool(data.get("new_animation", False))
-        render_only = bool(data.get("render_only", False))
-        timeout_s_raw = data.get("timeout_s")
-        if not prompt and not render_only:
-            return JsonResponse({"error": "prompt is required"}, status=400)
-
-        timeout_s = None
-        if timeout_s_raw is not None:
-            try:
-                timeout_s = int(timeout_s_raw)
-            except (TypeError, ValueError):
-                return JsonResponse({"error": "timeout_s must be an integer (seconds)"}, status=400)
-            if timeout_s < 30 or timeout_s > 900:
-                return JsonResponse({"error": "timeout_s must be between 30 and 900 seconds"}, status=400)
-
-        from .manim_service import generate_and_render, generate_and_render_continuation, generate_and_render_from_base_code, render_base_code_directly
-
-        use_continuation = bool(thread_id and not new_animation and thread_id in MANIM_THREADS)
-        if thread_id and not new_animation and thread_id not in MANIM_THREADS:
-            return JsonResponse({"error": "Invalid or expired thread_id. Start a new animation."}, status=400)
-
-        resolved_base_code_id = ""
-        used_thread_id = thread_id or uuid.uuid4().hex
-
-        if use_continuation:
-            thread = MANIM_THREADS[thread_id]
-            prior_user_requests = _extract_thread_user_requests(thread)
-            previous_code = (thread.get("current_code") or "").strip()
-            if not previous_code:
-                return JsonResponse({"error": "No previous code available in this thread."}, status=400)
-
-            resolved_base_code_id = (thread.get("base_code_id") or "").strip()
-            video_tmp_path, code, provider = generate_and_render_continuation(
-                previous_code=previous_code,
-                user_request=prompt,
-                domain=domain,
-                prior_user_requests=prior_user_requests,
-                base_code=thread.get("base_code"),
-                timeout_s=timeout_s,
-            )
-        else:
-            resolved_base_code_id = base_code_id or _auto_detect_base_code_id(prompt) or ""
-            base_code: Optional[str] = None
-            if render_only and resolved_base_code_id:
-                base_code = _load_base_code_by_id(resolved_base_code_id)
-                video_tmp_path, code, provider = render_base_code_directly(
-                    base_code=base_code,
-                    timeout_s=timeout_s,
-                )
-            elif resolved_base_code_id:
-                base_code = _load_base_code_by_id(resolved_base_code_id)
-                video_tmp_path, code, provider = generate_and_render_from_base_code(
-                    base_code=base_code,
-                    user_request=prompt,
-                    domain=domain,
-                    timeout_s=timeout_s,
-                )
-            else:
-                video_tmp_path, code, provider = generate_and_render(
-                    prompt=prompt,
-                    domain=domain,
-                    timeout_s=timeout_s,
-                )
-
-            MANIM_THREADS[used_thread_id] = {
-                "domain": domain,
-                "base_code_id": resolved_base_code_id or None,
-                "base_code": base_code,
-                "messages": [],
-                "current_code": "",
-            }
-
-        thread_ref = MANIM_THREADS.get(used_thread_id)
-        if thread_ref is None:
-            thread_ref = {
-                "domain": domain,
-                "base_code_id": resolved_base_code_id or None,
-                "base_code": None,
-                "messages": [],
-                "current_code": "",
-            }
-            MANIM_THREADS[used_thread_id] = thread_ref
-
-        thread_ref["domain"] = domain
-        thread_ref["messages"].append({"role": "user", "content": prompt})
-        thread_ref["messages"] = thread_ref["messages"][-20:]
-        thread_ref["current_code"] = code
-
-        out_dir = os.path.join(settings.MEDIA_ROOT, "manim")
-        os.makedirs(out_dir, exist_ok=True)
-        out_name = f"{uuid.uuid4().hex}.mp4"
-        out_path = os.path.join(out_dir, out_name)
-        shutil.copyfile(video_tmp_path, out_path)
-
-        return JsonResponse(
-            {
-                "status": "success",
-                "provider": provider,
-                "thread_id": used_thread_id,
-                "continuation": use_continuation,
-                "base_code_id": resolved_base_code_id or None,
-                "code": code,
-                "video_url": f"{settings.MEDIA_URL}manim/{out_name}",
-            }
-        )
-    except Exception as e:
-        return JsonResponse({"status": "error", "error": str(e)}, status=500)
+        resp = requests.post(target, data=request.body, headers={"Content-Type": request.META.get("CONTENT_TYPE", "application/json")}, timeout=300)
+        try:
+            payload = resp.json()
+        except ValueError:
+            return JsonResponse({"status": "error", "error": "Invalid JSON from manim service"}, status=502)
+        # Rewrite any /media/... paths so clients fetch media from the Manim service
+        payload = _rewrite_media_urls(payload, MANIM_API_BASE)
+        return JsonResponse(payload, status=resp.status_code)
+    except requests.RequestException as e:
+        return JsonResponse({"status": "error", "error": str(e)}, status=502)
 
 
 # ── Template slug → JSON filename mapping ──────────────────────────────────────
@@ -232,11 +150,18 @@ def manim_template_info(request):
     if not template_id:
         return JsonResponse({"error": "id query parameter is required"}, status=400)
 
+    MANIM_API_BASE = os.environ.get("MANIM_API_BASE_URL", "http://127.0.0.1:8010")
+    target = f"{MANIM_API_BASE.rstrip('/')}/manim/template-info/?id={quote_plus(template_id)}"
     try:
-        info = _load_template_info(template_id)
-        return JsonResponse({"status": "success", **info})
-    except Exception as e:
-        return JsonResponse({"status": "error", "error": str(e)}, status=400)
+        resp = requests.get(target, timeout=30)
+        try:
+            payload = resp.json()
+        except ValueError:
+            return JsonResponse({"status": "error", "error": "Invalid JSON from manim service"}, status=502)
+        payload = _rewrite_media_urls(payload, MANIM_API_BASE)
+        return JsonResponse(payload, status=resp.status_code)
+    except requests.RequestException as e:
+        return JsonResponse({"status": "error", "error": str(e)}, status=502)
 
 
 # ── Intent classification ───────────────────────────────────────────────────────
@@ -308,141 +233,21 @@ def manim_chat(request):
     if request.method != "POST":
         return JsonResponse({"error": "Only POST allowed"}, status=405)
 
+    # Proxy the chat endpoint to the Manim microservice. The microservice
+    # already handles intent classification and returns the appropriate JSON.
+    MANIM_API_BASE = os.environ.get("MANIM_API_BASE_URL", "http://127.0.0.1:8010")
+    target = f"{MANIM_API_BASE.rstrip('/')}/manim/chat/"
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST allowed"}, status=405)
+
     try:
-        data = json.loads(request.body or b"{}")
-        prompt = (data.get("prompt") or "").strip()
-        domain = (data.get("domain") or "Mathematics").strip() or "Mathematics"
-        thread_id = (data.get("thread_id") or "").strip()
-
-        if not prompt:
-            return JsonResponse({"error": "prompt is required"}, status=400)
-
-        intent = _classify_intent(prompt)
-
-        # ── Explanation path ────────────────────────────────────────────────
-        if intent == "explanation":
-            from .manim_service import _call_groq, GROQ_MODEL
-
-            # Build context from thread if available
-            context_hint = ""
-            if thread_id and thread_id in MANIM_THREADS:
-                thread = MANIM_THREADS[thread_id]
-                code_snippet = (thread.get("current_code") or "")[:1500]
-                base_id = thread.get("base_code_id") or ""
-                context_hint = (
-                    f"\n\nCurrent animation context:\n"
-                    f"- Template: {base_id or 'custom'}\n"
-                    f"- Domain: {thread.get('domain', domain)}\n"
-                    f"- Current code excerpt:\n{code_snippet}\n"
-                )
-
-            user_prompt = f"{prompt}{context_hint}"
-
-            try:
-                answer = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=CHAT_SYSTEM_PROMPT)
-            except RuntimeError as e:
-                answer = f"Sorry, I couldn't generate an explanation right now: {e}"
-
-            # Store in thread messages if thread exists
-            if thread_id and thread_id in MANIM_THREADS:
-                t = MANIM_THREADS[thread_id]
-                t["messages"].append({"role": "user", "content": prompt})
-                t["messages"].append({"role": "assistant", "content": answer})
-                t["messages"] = t["messages"][-20:]
-
-            return JsonResponse({
-                "status": "success",
-                "type": "explanation",
-                "message": answer,
-                "thread_id": thread_id,
-            })
-
-        # ── Animation path ─ delegate to manim_generate logic ──────────────
-        from .manim_service import (
-            generate_and_render,
-            generate_and_render_continuation,
-            generate_and_render_from_base_code,
-        )
-
-        base_code_id = (data.get("base_code_id") or data.get("template_id") or "").strip()
-
-        use_continuation = bool(thread_id and thread_id in MANIM_THREADS)
-        if thread_id and thread_id not in MANIM_THREADS:
-            return JsonResponse({"error": "Invalid or expired thread_id. Start a new animation."}, status=400)
-
-        resolved_base_code_id = ""
-        used_thread_id = thread_id or uuid.uuid4().hex
-
-        if use_continuation:
-            thread = MANIM_THREADS[thread_id]
-            prior_user_requests = _extract_thread_user_requests(thread)
-            previous_code = (thread.get("current_code") or "").strip()
-            if not previous_code:
-                return JsonResponse({"error": "No previous code available in this thread."}, status=400)
-
-            resolved_base_code_id = (thread.get("base_code_id") or "").strip()
-            video_tmp_path, code, provider = generate_and_render_continuation(
-                previous_code=previous_code,
-                user_request=prompt,
-                domain=domain,
-                prior_user_requests=prior_user_requests,
-                base_code=thread.get("base_code"),
-            )
-        else:
-            resolved_base_code_id = base_code_id or _auto_detect_base_code_id(prompt) or ""
-            base_code: Optional[str] = None
-            if resolved_base_code_id:
-                base_code = _load_base_code_by_id(resolved_base_code_id)
-                video_tmp_path, code, provider = generate_and_render_from_base_code(
-                    base_code=base_code,
-                    user_request=prompt,
-                    domain=domain,
-                )
-            else:
-                video_tmp_path, code, provider = generate_and_render(
-                    prompt=prompt,
-                    domain=domain,
-                )
-
-            MANIM_THREADS[used_thread_id] = {
-                "domain": domain,
-                "base_code_id": resolved_base_code_id or None,
-                "base_code": base_code,
-                "messages": [],
-                "current_code": "",
-            }
-
-        thread_ref = MANIM_THREADS.get(used_thread_id)
-        if thread_ref is None:
-            thread_ref = {
-                "domain": domain,
-                "base_code_id": resolved_base_code_id or None,
-                "base_code": None,
-                "messages": [],
-                "current_code": "",
-            }
-            MANIM_THREADS[used_thread_id] = thread_ref
-
-        thread_ref["domain"] = domain
-        thread_ref["messages"].append({"role": "user", "content": prompt})
-        thread_ref["messages"] = thread_ref["messages"][-20:]
-        thread_ref["current_code"] = code
-
-        out_dir = os.path.join(settings.MEDIA_ROOT, "manim")
-        os.makedirs(out_dir, exist_ok=True)
-        out_name = f"{uuid.uuid4().hex}.mp4"
-        out_path = os.path.join(out_dir, out_name)
-        shutil.copyfile(video_tmp_path, out_path)
-
-        return JsonResponse({
-            "status": "success",
-            "type": "animation",
-            "provider": provider,
-            "thread_id": used_thread_id,
-            "continuation": use_continuation,
-            "base_code_id": resolved_base_code_id or None,
-            "code": code,
-            "video_url": f"{settings.MEDIA_URL}manim/{out_name}",
-        })
-    except Exception as e:
-        return JsonResponse({"status": "error", "type": "error", "error": str(e)}, status=500)
+        resp = requests.post(target, data=request.body, headers={"Content-Type": request.META.get("CONTENT_TYPE", "application/json")}, timeout=300)
+        try:
+            payload = resp.json()
+        except ValueError:
+            return JsonResponse({"status": "error", "error": "Invalid JSON from manim service"}, status=502)
+        payload = _rewrite_media_urls(payload, MANIM_API_BASE)
+        return JsonResponse(payload, status=resp.status_code)
+    except requests.RequestException as e:
+        return JsonResponse({"status": "error", "error": str(e)}, status=502)

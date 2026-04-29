@@ -28,6 +28,9 @@ urlpatterns = [
     path('modules/', include('modules.urls')),
     path('mathcompute/',include('mathcompute.urls')),
     path('visualization/', include('visualization.urls')),
+    # Expose visualization routes at root as well so clients targeting
+    # `/manim/...` (no `/visualization` prefix) will still resolve.
+    path('', include('visualization.urls')),
     
 ]
 

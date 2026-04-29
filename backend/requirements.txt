@@ -16,3 +16,4 @@ python-docx
 
 # Mistral client
 mistralai<2
+requests>=2.31.0

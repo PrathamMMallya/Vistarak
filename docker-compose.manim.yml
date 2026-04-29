@@ -1,0 +1,14 @@
+services:
+  manim:
+    build:
+      context: ./backend
+      dockerfile: manim_microservice/Dockerfile
+    ports:
+      - "8010:8000"
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      MANIM_MEDIA_ROOT: /app/media
+      MANIM_STATE_DIR: /app/state
+      MANIM_CORS_ORIGINS: ${MANIM_CORS_ORIGINS:-*}
+    restart: unless-stopped

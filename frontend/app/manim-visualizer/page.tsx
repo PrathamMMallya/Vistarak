@@ -5,6 +5,7 @@ import { Film, Wand2, ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionCard } from "@/components/shared/section-card";
+import { manimApiUrl, manimMediaUrl } from "@/lib/manim-api";
 
 type Domain = "Mathematics" | "Physics";
 type ChatMessage = { role: "user" | "assistant"; text: string };
@@ -93,7 +94,7 @@ export default function ManimVisualizerPage() {
     try {
       // Fetch template metadata and render in parallel
       const [renderRes, infoRes] = await Promise.all([
-        fetch("http://127.0.0.1:8000/visualization/manim/generate/", {
+        fetch(manimApiUrl("/manim/generate/"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -102,7 +103,7 @@ export default function ManimVisualizerPage() {
             render_only: true,
           }),
         }),
-        fetch(`http://127.0.0.1:8000/visualization/manim/template-info/?id=${encodeURIComponent(template.id)}`)
+        fetch(manimApiUrl(`/manim/template-info/?id=${encodeURIComponent(template.id)}`))
       ]);
 
       const renderData = await renderRes.json();
@@ -113,7 +114,7 @@ export default function ManimVisualizerPage() {
       setThreadId(renderData.thread_id || "");
       setProvider(renderData.provider || "Template");
       setCode(renderData.code || "");
-      setVideoUrl(`http://127.0.0.1:8000${renderData.video_url}`);
+      setVideoUrl(manimMediaUrl(renderData.video_url));
       setStatus("Template rendered successfully.");
 
       // Build rich description from JSON metadata
@@ -160,7 +161,7 @@ export default function ManimVisualizerPage() {
     setStatus("Processing...");
     
     try {
-      const res = await fetch("http://127.0.0.1:8000/visualization/manim/chat/", {
+      const res = await fetch(manimApiUrl("/manim/chat/"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -185,7 +186,7 @@ export default function ManimVisualizerPage() {
         setThreadId(data.thread_id || threadId);
         setProvider(data.provider || "");
         setCode(data.code || "");
-        setVideoUrl(`http://127.0.0.1:8000${data.video_url}`);
+        setVideoUrl(manimMediaUrl(data.video_url));
         setStatus("Animation updated successfully.");
         setMessages((prev) => [...prev, { role: "assistant", text: "✅ Animation updated! Check the video on the right." }]);
       }
