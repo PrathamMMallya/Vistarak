@@ -40,8 +40,8 @@ const modules = [
   },
   {
     id: "tts",
-    title: "Text-to-Speech",
-    description: "Generate natural-sounding audio with Indian language accents",
+    title: "Emotion TTS",
+    description: "AI-labelled expressive speech — Groq emotion analysis + ChatterboxTurbo voice cloning",
     icon: Mic2,
     color: "from-pink-500 to-pink-600",
     href: "/tts",

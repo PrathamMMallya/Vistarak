@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,9 +32,10 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    "modules",
-    "translate",
-    "mathocr",
+    "modules",          # Emotion TTS app
+    # "translate",      # commented — package not installed
+    # "mathocr",        # commented — package not installed
+    # "document_summary", # commented — package not installed
     "corsheaders",
     'django.contrib.admin',
     'django.contrib.auth',
@@ -125,7 +127,27 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media files (TTS audio output)
+MEDIA_URL  = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ─── Emotion TTS Configuration ────────────────────────────────────
+# Groq API key for emotion labelling (set GROQ_API_KEY env var in production)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+# Path to ffmpeg binaries (for pydub audio processing)
+FFMPEG_DIR = r"C:\Users\prath\Downloads\ffmpeg-8.1-essentials_build\bin"
+
+# Where merged TTS output WAVs are saved
+TTS_OUTPUT_DIR = str(BASE_DIR / 'tts_output')
+
+# Path to the chatterbox-emotion-tts project (contains chatterbox/ package)
+CHATTERBOX_PACKAGE_DIR = r"C:\Users\prath\Downloads\chatterbox-emotion-tts"
+
+# Default voice reference WAV for cloning (≥5 s clean speech)
+TTS_DEFAULT_VOICE_PATH = r"C:\Users\prath\Downloads\chatterbox-emotion-tts\voices\baabu.wav"

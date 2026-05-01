@@ -15,13 +15,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path,include
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('modules/', include('document_summary.urls')),
-    path('modules/',include('modules.urls')),    
-    path('translate/',include('translate.urls')),
-    path('mathocr/',include('mathocr.urls')),
-    path('modules/', include('modules.urls')),
+    # path('modules/', include('document_summary.urls')),  # commented — not needed now
+    path('modules/', include('modules.urls')),             # Emotion TTS lives here
+    # path('translate/', include('translate.urls')),       # commented — package not installed
+    # path('mathocr/', include('mathocr.urls')),           # commented — package not installed
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
