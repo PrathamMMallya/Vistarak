@@ -1,4 +1,17 @@
 services:
+  ollama:
+    build:
+      context: ./backend
+      dockerfile: ollama/Dockerfile
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:3b}
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
   manim:
     build:
       context: ./backend
@@ -6,9 +19,16 @@ services:
     ports:
       - "8010:8000"
     environment:
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://ollama:11434/v1}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:3b}
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
       MANIM_MEDIA_ROOT: /app/media
       MANIM_STATE_DIR: /app/state
       MANIM_CORS_ORIGINS: ${MANIM_CORS_ORIGINS:-*}
+    depends_on:
+      - ollama
     restart: unless-stopped
+
+volumes:
+  ollama_data:
