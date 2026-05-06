@@ -15,6 +15,14 @@ EQUATIONS_STORE = []
 MANIM_THREADS: dict[str, dict[str, Any]] = {}
 
 
+def _manim_proxy_timeout() -> int:
+    raw_timeout = os.environ.get("MANIM_PROXY_TIMEOUT", "900")
+    try:
+        return max(30, int(raw_timeout))
+    except (TypeError, ValueError):
+        return 900
+
+
 def _load_base_code_by_id(base_code_id: str) -> str:
     base_code_id = (base_code_id or "").strip()
     if not base_code_id:
@@ -107,7 +115,12 @@ def manim_generate(request):
         return JsonResponse({"error": "Only POST allowed"}, status=405)
 
     try:
-        resp = requests.post(target, data=request.body, headers={"Content-Type": request.META.get("CONTENT_TYPE", "application/json")}, timeout=300)
+        resp = requests.post(
+            target,
+            data=request.body,
+            headers={"Content-Type": request.META.get("CONTENT_TYPE", "application/json")},
+            timeout=_manim_proxy_timeout(),
+        )
         try:
             payload = resp.json()
         except ValueError:
@@ -242,7 +255,12 @@ def manim_chat(request):
         return JsonResponse({"error": "Only POST allowed"}, status=405)
 
     try:
-        resp = requests.post(target, data=request.body, headers={"Content-Type": request.META.get("CONTENT_TYPE", "application/json")}, timeout=300)
+        resp = requests.post(
+            target,
+            data=request.body,
+            headers={"Content-Type": request.META.get("CONTENT_TYPE", "application/json")},
+            timeout=_manim_proxy_timeout(),
+        )
         try:
             payload = resp.json()
         except ValueError:

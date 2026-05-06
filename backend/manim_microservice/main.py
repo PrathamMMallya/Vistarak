@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 
 from visualization.manim_service import (
     GROQ_MODEL,
-    _call_groq,
+    OLLAMA_MODEL,
+    _call_llm,
     generate_and_render,
     generate_and_render_continuation,
     generate_and_render_from_base_code,
@@ -384,7 +385,7 @@ def manim_chat(request: ChatRequest) -> JSONResponse:
                 )
 
             user_prompt = f"{prompt}{context_hint}"
-            answer = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=CHAT_SYSTEM_PROMPT)
+            answer = _call_llm(user_prompt, system_prompt=CHAT_SYSTEM_PROMPT)
 
             if thread:
                 thread["messages"].append({"role": "user", "content": prompt})

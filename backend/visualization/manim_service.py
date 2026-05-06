@@ -55,6 +55,9 @@ Rules:
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
+OLLAMA_API_BASE = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434/v1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:3b")
+
 MAX_BASE_CODE_PROMPT_CHARS = 9000
 MAX_CONTINUATION_CODE_PROMPT_CHARS = 11000
 MAX_REVIEW_CODE_CHARS = 10000
@@ -344,6 +347,106 @@ def _call_groq_review(code: str, error_hint: str | None = None) -> str:
     return _call_groq(review_prompt, model=GROQ_MODEL, system_prompt=REVIEW_SYSTEM_PROMPT)
 
 
+def _call_ollama(user_prompt: str, model: str, system_prompt: str) -> str:
+    api_base = OLLAMA_API_BASE.rstrip("/")
+    api_url = f"{api_base}/chat/completions"
+
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.3,
+            "max_tokens": 4096,
+        }
+    ).encode("utf-8")
+
+    request = Request(
+        api_url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=300) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as e:
+        details = e.read().decode("utf-8", errors="ignore") if hasattr(e, "read") else ""
+        raise RuntimeError(f"Ollama request failed (HTTP {e.code}): {details or e.reason}") from e
+    except URLError as e:
+        raise RuntimeError(f"Could not reach Ollama API at {api_url}: {e.reason}") from e
+
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Invalid JSON response from Ollama: {body[:500]}") from e
+
+    choices = data.get("choices", [])
+    if not choices:
+        raise RuntimeError("Ollama returned an empty response.")
+    
+    content = choices[0].get("message", {}).get("content", "")
+    if not content.strip():
+        raise RuntimeError("Ollama returned empty message content.")
+
+    return content.strip()
+
+
+def _call_ollama_review(code: str, error_hint: str | None = None) -> str:
+    if len(code) > MAX_REVIEW_CODE_CHARS:
+        raise RuntimeError("Review skipped: code too large for safe review payload.")
+
+    compact_error_hint = _clip_text_middle(error_hint or "None", 500)
+    review_prompt = (
+        "Review and fix this Manim v0.20.1 code.\n"
+        "Return the corrected full code only.\n\n"
+        f"ERROR_HINT:\n{compact_error_hint}\n\n"
+        f"CODE:\n{code}\n"
+    )
+    return _call_ollama(review_prompt, model=OLLAMA_MODEL, system_prompt=REVIEW_SYSTEM_PROMPT)
+
+
+def _call_llm(user_prompt: str, system_prompt: str) -> str:
+    if OLLAMA_API_BASE:
+        try:
+            return _call_ollama(user_prompt, model=OLLAMA_MODEL, system_prompt=system_prompt)
+        except Exception as e:
+            if GROQ_API_KEY:
+                print(f"Ollama request failed, falling back to Groq: {str(e)[:200]}")
+                return _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=system_prompt)
+            raise
+    elif GROQ_API_KEY:
+        return _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=system_prompt)
+    else:
+        raise RuntimeError(
+            "No LLM provider configured. Set OLLAMA_API_BASE or GROQ_API_KEY environment variable."
+        )
+
+
+def _call_llm_review(code: str, error_hint: str | None = None) -> str:
+    if OLLAMA_API_BASE:
+        try:
+            return _call_ollama_review(code, error_hint=error_hint)
+        except Exception as e:
+            if GROQ_API_KEY:
+                print(f"Ollama review failed, falling back to Groq: {str(e)[:200]}")
+                return _call_groq_review(code, error_hint=error_hint)
+            raise
+    elif GROQ_API_KEY:
+        return _call_groq_review(code, error_hint=error_hint)
+    else:
+        raise RuntimeError(
+            "No LLM provider configured. Set OLLAMA_API_BASE or GROQ_API_KEY environment variable."
+        )
+
+
+
 def _review_with_feedback(
     code: str,
     max_rounds: int = 2,
@@ -357,7 +460,7 @@ def _review_with_feedback(
 
     for _ in range(max_rounds):
         try:
-            raw = _call_groq_review(current, error_hint=error_hint)
+            raw = _call_llm_review(current, error_hint=error_hint)
         except RuntimeError as e:
             msg = str(e)
             if "Request too large" in msg or "rate_limit_exceeded" in msg or "Review skipped" in msg:
@@ -366,40 +469,42 @@ def _review_with_feedback(
         reviewed = _validate_scene_class(_extract_code(raw))
         safe, reason = _is_code_safe(reviewed)
         if not safe:
-            raise RuntimeError(f"Groq review rejected for safety: {reason}")
+            raise RuntimeError(f"LLM review rejected for safety: {reason}")
         try:
             _validate_generated_code_or_raise(reviewed)
             return reviewed
         except Exception as e:
             error_hint = str(e)[:300]
             current = reviewed
-    raise RuntimeError(f"Groq review failed to validate after {max_rounds} rounds.")
+    raise RuntimeError(f"LLM review failed to validate after {max_rounds} rounds.")
 
 
 def generate_manim_code(prompt: str, domain: str) -> tuple[str, str]:
     user_prompt = _build_user_prompt(prompt, domain)
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL})"
+    provider_info = f"Ollama ({OLLAMA_MODEL})" if OLLAMA_API_BASE else f"Groq ({GROQ_MODEL})"
+    return reviewed, f"{provider_info} → LLM review"
 
 
 def generate_manim_code_from_base_code(base_code: str, user_request: str, domain: str) -> tuple[str, str]:
     user_prompt = _build_base_code_user_prompt(base_code=base_code, user_request=user_request, domain=domain)
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL}, base-code)"
+    provider_info = f"Ollama ({OLLAMA_MODEL})" if OLLAMA_API_BASE else f"Groq ({GROQ_MODEL})"
+    return reviewed, f"{provider_info} → LLM review (base-code)"
 
 
 def generate_manim_code_continuation(
@@ -417,27 +522,29 @@ def generate_manim_code_continuation(
         base_code=base_code,
     )
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL}, continuation)"
+    provider_info = f"Ollama ({OLLAMA_MODEL})" if OLLAMA_API_BASE else f"Groq ({GROQ_MODEL})"
+    return reviewed, f"{provider_info} → LLM review (continuation)"
 
 
 def generate_manim_code_from_template(template: dict[str, Any], user_request: str) -> tuple[str, str]:
     user_prompt = _build_template_user_prompt(template, user_request)
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL}, template)"
+    provider_info = f"Ollama ({OLLAMA_MODEL})" if OLLAMA_API_BASE else f"Groq ({GROQ_MODEL})"
+    return reviewed, f"{provider_info} → LLM review (template)"
 
 
 def render_manim_to_mp4(code: str, timeout_s: int = 180) -> str:
@@ -462,12 +569,20 @@ def render_manim_to_mp4(code: str, timeout_s: int = 180) -> str:
         "GeneratedScene",
     ]
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=work_dir,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=work_dir,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout_tail = (exc.stdout or "")[-1000:] if isinstance(exc.stdout, str) else ""
+        stderr_tail = (exc.stderr or "")[-3000:] if isinstance(exc.stderr, str) else ""
+        raise TimeoutError(
+            f"Manim render timed out after {timeout_s} seconds.\n{stderr_tail}\n{stdout_tail}"
+        ) from exc
     if result.returncode != 0:
         stderr_tail = (result.stderr or "")[-3000:]
         stdout_tail = (result.stdout or "")[-1000:]
