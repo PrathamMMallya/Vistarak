@@ -1,32 +1,17 @@
 "use client"
 
 import { Bell, User, Search, Menu } from "lucide-react"
-import { useState } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { useSidebar } from "@/components/layout/sidebar"
 
 export function Navbar() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const pathname = usePathname()
-
-  const navItems = [
-    { icon: Menu, label: "Dashboard", href: "/" },
-    { icon: Menu, label: "Video Transcription", href: "/video-transcription" },
-    { icon: Menu, label: "Document Translation", href: "/document-translation" },
-    { icon: Menu, label: "OCR", href: "/ocr" },
-    { icon: Menu, label: "Context Translation", href: "/context-engine" },
-    { icon: Menu, label: "Text-to-Speech", href: "/tts" },
-    { icon: Menu, label: "Math Visualizer", href: "/math-visualizer" },
-    { icon: Menu, label: "Summarizer", href: "/summarizer" },
-    { icon: Menu, label: "Settings", href: "/settings" },
-  ]
+  const { open, setOpen } = useSidebar()
 
   return (
     <div className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
       <div className="h-full px-6 flex items-center justify-between">
         <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 hover:bg-card rounded-lg transition-colors mr-4"
+          onClick={() => setOpen(!open)}
+          className="p-2 hover:bg-card rounded-lg transition-colors mr-4 md:hidden"
           aria-label="Toggle menu"
         >
           <Menu size={20} />
@@ -53,36 +38,6 @@ export function Navbar() {
           </button>
         </div>
       </div>
-
-      {sidebarOpen && (
-        <div
-          className={`fixed left-0 top-16 h-[calc(100vh-4rem)] bg-sidebar border-r border-sidebar-border transition-all duration-300 z-40 w-64 overflow-y-auto`}
-        >
-          <nav className="p-4 space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/10"
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </Link>
-              )
-            })}
-          </nav>
-        </div>
-      )}
-
-      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30" onClick={() => setSidebarOpen(false)} />}
     </div>
   )
 }

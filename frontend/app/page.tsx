@@ -70,6 +70,14 @@ const modules = [
     color: "from-rose-500 to-rose-600",
     href: "/manim-visualizer",
   },
+  {
+    id: "animated-story",
+    title: "Animated Story",
+    description: "Generate a narrated animated story from a prompt",
+    icon: Film,
+    color: "from-rose-500 to-rose-600",
+    href: "/animated-story",
+  },
 ]
 
 export default function Home() {

@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "mathocr",
     "mathcompute",
     "visualization",
+    "voiceframe",
     "corsheaders",
     'django.contrib.admin',
     'django.contrib.auth',

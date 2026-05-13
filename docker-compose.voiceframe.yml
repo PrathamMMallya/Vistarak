@@ -1,0 +1,20 @@
+services:
+  voiceframe:
+    build:
+      context: ./backend
+      dockerfile: voiceframe_microservice/Dockerfile
+    ports:
+      - "8020:8020"
+    environment:
+      VOICEFRAME_MEDIA_ROOT: /shared_media
+      VOICEFRAME_STATE_DIR: /app/state
+      VOICEFRAME_WORK_DIR: /app/work
+    volumes:
+      - ./backend/media:/shared_media
+      - voiceframe_state:/app/state
+      - voiceframe_work:/app/work
+    restart: unless-stopped
+
+volumes:
+  voiceframe_state:
+  voiceframe_work:

@@ -2,8 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/react"
-import { Sidebar } from "@/components/layout/sidebar"
-import { Navbar } from "@/components/layout/navbar"
+import { AppShell } from "@/components/layout/app-shell"
 import "./globals.css"
 
 // Load fonts
@@ -32,21 +31,10 @@ export default function RootLayout({
       <body
         className={`${geist.className} ${geistMono.className} font-sans antialiased bg-background text-foreground`}
       >
-        <div className="flex h-screen flex-col">
-          {/* Navbar at the top */}
-          <Navbar />
+        <AppShell>{children}</AppShell>
 
-          <div className="flex flex-1 overflow-hidden">
-            {/* Sidebar */}
-            <Sidebar />
-
-            {/* Main content */}
-            <main className="flex-1 overflow-auto p-4">{children}</main>
-          </div>
-
-          {/* Analytics */}
-          <Analytics />
-        </div>
+        {/* Analytics */}
+        <Analytics />
       </body>
     </html>
   )
