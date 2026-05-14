@@ -1,0 +1,18 @@
+{
+  "template_id": "physics.projectile_motion",
+  "title": "Projectile Motion",
+  "description": "Simulates projectile motion with vector decomposition. A red dot launches with initial velocity vx = 4.0, vy = 6.0 under gravity = −9.8 m/s². The dot's position is updated via a ValueTracker, with a yellow TracedPath showing the trajectory. Blue and green arrows represent the horizontal (vx) and vertical (vy) velocity components in real time. The animation runs for the full time of flight.",
+  "variables": {
+    "vx": { "default": 4.0, "type": "float", "description": "Horizontal velocity component (m/s)" },
+    "vy": { "default": 6.0, "type": "float", "description": "Initial vertical velocity component (m/s)" },
+    "gravity": { "default": -9.8, "type": "float", "description": "Gravitational acceleration (m/s²)" }
+  },
+  "key_objects": [
+    "Axes (x: 0–10, y: 0–5)",
+    "Dot (red, projectile)",
+    "TracedPath (yellow, trajectory)",
+    "Arrow vx (blue, horizontal velocity)",
+    "Arrow vy (green, vertical velocity, shrinks with time)"
+  ],
+  "what_to_modify": "Change vx, vy, or gravity to alter the trajectory. Add air resistance, show the max height or range as labels, change projectile color, add a ground line, or display a velocity magnitude indicator."
+}

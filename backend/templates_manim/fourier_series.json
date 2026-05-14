@@ -1,0 +1,16 @@
+{
+  "template_id": "math.fourier_series",
+  "title": "Fourier Series",
+  "description": "Demonstrates Fourier series approximation of a square wave. A gray square wave target is plotted, then odd harmonics (n = 1, 3, 5, 7, 9) are progressively added. Each step shows a yellow curve that transforms closer to the square wave as more terms are summed using the formula (4/πn)·sin(nx). Info labels announce each added harmonic.",
+  "variables": {
+    "n_terms": { "default": 5, "type": "int", "description": "Number of Fourier harmonics to add (uses odd n up to 2·n_terms − 1)" },
+    "amplitude": { "default": 1.0, "type": "float", "description": "Amplitude coefficient (embedded in 4/πn formula)" }
+  },
+  "key_objects": [
+    "Axes (x: 0 to 4π, y: -1.5 to 1.5)",
+    "Square wave target (gray, no smoothing)",
+    "Fourier approximation curve (yellow, transforms each step)",
+    "Text labels (\"Adding Harmonic: n=...\")"
+  ],
+  "what_to_modify": "Change the target waveform (sawtooth, triangle), increase n_terms for better approximation, add individual harmonic curves in different colors, show the Gibbs phenomenon, or animate the convergence continuously."
+}

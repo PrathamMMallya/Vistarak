@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Video, FileText, BookOpen, Zap, Mic2, Calculator, Languages, Sparkles, ArrowRight } from "lucide-react"
+import { Video, FileText, BookOpen, Zap, Mic2, Calculator, Languages, Sparkles, ArrowRight, Film } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const modules = [
@@ -33,14 +33,21 @@ const modules = [
     href: "/tts",
   },
   {
-    id: "math-visualizer",
+    id: "mathcompute",
     title: "Math Visualization",
     description: "Extract, convert, and visualize mathematical equations",
     icon: Calculator,
     color: "from-emerald-500 to-emerald-600",
-    href: "/math-visualizer",
+    href: "/mathcompute",
   },
-
+  {
+    id: "manim-visualizer",
+    title: "Manim Visualizer",
+    description: "Create interactive mathematical and physical animations with AI",
+    icon: Film,
+    color: "from-orange-500 to-orange-600",
+    href: "/manim-visualizer",
+  },
 ]
 
 export default function Home() {

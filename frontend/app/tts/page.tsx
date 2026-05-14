@@ -176,7 +176,7 @@ export default function TextToSpeech() {
   // BACKEND URL
   // ───────────────────────────────────────────────────────────
 
-  const BACKEND = "http://172.16.2.131:9055"
+  const BACKEND = "http://localhost:8000/modules/tts"
   // ───────────────────────────────────────────────────────────
   // Upload voice file
   // ───────────────────────────────────────────────────────────

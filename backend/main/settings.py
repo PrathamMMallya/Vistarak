@@ -26,16 +26,17 @@ SECRET_KEY = 'django-insecure-0vkf)4oxlzc+gm38!u_%k@zun75yp+@bqlciwc+@*8tju+%)!z
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
 
 INSTALLED_APPS = [
     "modules",          # Emotion TTS app
-    # "translate",      # commented — package not installed
-    # "mathocr",        # commented — package not installed
-    # "document_summary", # commented — package not installed
+    "translate",
+    "mathocr",
+    "mathcompute",
+    "visualization",
     "corsheaders",
     'django.contrib.admin',
     'django.contrib.auth',
@@ -118,6 +119,7 @@ USE_I18N = True
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = ['*']
 CORS_ALLOW_METHODS = ['*']
+CORS_ALLOW_ALL_ORIGINS = True
 
 USE_TZ = True
 

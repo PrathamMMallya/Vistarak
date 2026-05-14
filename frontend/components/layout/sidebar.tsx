@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Languages, Video, BookOpen, Zap, Mic2, Calculator, Settings, Home } from "lucide-react"
+import { FileText, Languages, Video, BookOpen, Zap, Mic2, Calculator, Settings, Home, Film } from "lucide-react"
 
 const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },

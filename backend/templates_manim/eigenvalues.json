@@ -1,0 +1,16 @@
+{
+  "template_id": "math.eigenvalues",
+  "title": "Eigenvalues & Eigenvectors",
+  "description": "Visualizes eigenvalues and eigenvectors of the 2×2 matrix [[2,1],[1,2]]. A NumberPlane grid is drawn with three vectors: v1 = (1,1) in yellow, v2 = (-1,1) in red, and v3 = (1,0) in green. The matrix transformation is applied to the grid and vectors simultaneously — v1 scales by eigenvalue 3, v2 stays at eigenvalue 1, and v3 gets rotated. Labels highlight which vectors are eigenvectors.",
+  "variables": {
+    "matrix": { "default": [[2,1],[1,2]], "type": "list[list[float]]", "description": "The 2×2 transformation matrix" }
+  },
+  "key_objects": [
+    "NumberPlane (grid)",
+    "Vector v1 (1,1) — yellow, eigenvector with eigenvalue 3",
+    "Vector v2 (-1,1) — red, eigenvector with eigenvalue 1",
+    "Vector v3 (1,0) — green, non-eigenvector",
+    "Text labels for eigenvector identification"
+  ],
+  "what_to_modify": "Try a different matrix (e.g. [[3,1],[0,2]]), change vector colors, add eigenvalue labels with numeric values, animate vectors individually, or show the characteristic equation."
+}

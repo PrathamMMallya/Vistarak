@@ -23,7 +23,8 @@ export default function OCR() {
 
   useEffect(() => {
     // Import MathLive dynamically
-    import('mathlive').then(() => {
+    import('mathlive').then((mathlive) => {
+      mathlive.MathfieldElement.fontsDirectory = '/mathcompute/libs/fonts';
       if (mathFieldRef.current && latexOutput) {
         mathFieldRef.current.value = latexOutput
         
@@ -51,7 +52,7 @@ export default function OCR() {
       const formData = new FormData()
       formData.append('file', imageFile)
       
-      const response = await fetch("http://172.16.2.131:9000/mathocr/latex/", {
+      const response = await fetch("http://localhost:8000/mathocr/latex/", {
         method: "POST",
         body: formData,
       })

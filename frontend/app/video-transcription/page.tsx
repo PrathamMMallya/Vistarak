@@ -48,7 +48,7 @@ export default function VideoTranscription() {
 
     try {
       const response = await fetch(
-        "http://172.16.2.131:9000/modules/video_transcribe/",
+        "http://localhost:8000/modules/video_transcribe/",
         { method: "POST", body: formData }
       )
 
@@ -85,10 +85,11 @@ export default function VideoTranscription() {
     setIsTranslating(true)
 
     const data = new FormData()
-    data.append("target_lan", target_lan)
+    data.append("target_lan", targetLanguage)
+    data.append("text", transcript)
 
     try {
-      const response = await fetch("http://172.16.2.131:9000/translate/nllb/", {
+      const response = await fetch("http://localhost:8000/translate/nllb/", {
         method: "POST",
         body: data,
       })

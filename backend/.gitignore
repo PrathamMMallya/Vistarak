@@ -15,3 +15,9 @@ venv/
 
 # Ignore ONLY emotion model folder
 context_engine/emotion_model/
+
+# Manim temporary files
+temp_manim/
+media/
+*/__pycache__/*
+*.pyc   

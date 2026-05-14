@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Visualizer</title>
+    
+    <!-- <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script> -->
+
+    <script src="libs/plotly.min.js"></script> 
+    <link rel="stylesheet" href="libs/katex.min.css">
+    <script src="libs/katex.min.js"></script>
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Math Visualizer</h1>
+            <p class="subtitle">Mathematics Visualization Tool</p>
+            <div class="status-indicator">
+                <span id="backend-status" class="status-dot offline"></span>
+                <span id="status-text">Checking backend...</span>
+            </div>
+        </header>
+
+        <div class="tabs" style="padding-bottom: 10px;">
+            <button class="tab-btn active" onclick="switchTab('standard')">Standard Mode</button>
+            <button class="tab-btn" onclick="switchTab('custom')">Custom Graph</button>
+            <button class="tab-btn" onclick="switchTab('statistics')">Statistics</button>
+        </div>
+
+        <!-- STANDARD MODE -->
+        <div id="standard-tab" class="tab-content active">
+            <div class="input-group">
+                <label for="latex-input">LaTeX Input:</label>
+                <textarea id="latex-input" placeholder="Enter LaTeX expression...
+Examples:
+- Calculus: x^2 + 2x + 1  or  \sin(x)
+- Algebra: x^2 - 5x + 6 = 0
+- Geometry: x^2 + y^2 = 25"></textarea>
+            </div>
+
+            <div class="latex-preview">
+                <label>Preview:</label>
+                <div id="latex-display">Type to preview...</div>
+            </div>
+
+            <div class="input-group">
+                <label for="module-select">
+                    Module Type: 
+                    <span id="auto-detect-badge" class="auto-badge">Auto-detected</span>
+                </label>
+                <select id="module-select">
+                    <option value="auto">Auto-Detect</option>
+                    <option value="calculus">Calculus (Derivatives, Integrals)</option>
+                    <option value="algebra">Algebra (Equations, Factoring)</option>
+                    <option value="geometry">Geometry (Circles, Lines)</option>
+                    <!-- <option value="vectors">3D Vectors (Dot, Cross Product)</option> -->
+                </select>
+            </div>
+
+            <button id="visualize-btn" onclick="visualize()">
+                 Visualize
+            </button>
+
+            <div id="error-message" class="error-message"></div>
+
+            <div class="results-section" id="results-section">
+                <h2>Results</h2>
+                
+                <div class="info-panel" id="info-panel"></div>
+                
+                <div class="plot-container">
+                    <div id="plot"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CUSTOM GRAPH MODE -->
+        <div id="custom-tab" class="tab-content">
+            <div class="input-group">
+                <label for="custom-function">Function Expression</label>
+                <input type="text" id="custom-function" placeholder="e.g., sin(x), x^2, cos(x)*exp(-x/10)" value="sin(x)">
+            </div>
+
+            <div class="function-examples">
+                <button class="example-btn" onclick="loadExample('sin(x)')">Sine Wave</button>
+                <button class="example-btn" onclick="loadExample('x^2')">Parabola</button>
+                <button class="example-btn" onclick="loadExample('cos(x)*exp(-x/10)')">Damped Cosine</button>
+                <button class="example-btn" onclick="loadExample('tan(x)')">Tangent</button>
+                <button class="example-btn" onclick="loadExample('x^3 - 3*x')">Cubic</button>
+                <button class="example-btn" onclick="loadExample('1/x')">⚡ Hyperbola</button>
+            </div>
+
+            <div class="controls-grid">
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>X Min</span>
+                        <span class="slider-value" id="x-min-val">-10</span>
+                    </div>
+                    <input type="range" id="x-min" min="-50" max="0" value="-10" step="1">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>X Max</span>
+                        <span class="slider-value" id="x-max-val">10</span>
+                    </div>
+                    <input type="range" id="x-max" min="0" max="50" value="10" step="1">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Amplitude (a)</span>
+                        <span class="slider-value" id="amplitude-val">1</span>
+                    </div>
+                    <input type="range" id="amplitude" min="0.1" max="5" value="1" step="0.1">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Frequency (f)</span>
+                        <span class="slider-value" id="frequency-val">1</span>
+                    </div>
+                    <input type="range" id="frequency" min="0.1" max="5" value="1" step="0.1">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Phase Shift (φ)</span>
+                        <span class="slider-value" id="phase-val">0</span>
+                    </div>
+                    <input type="range" id="phase" min="-3.14" max="3.14" value="0" step="0.1">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Vertical Shift (k)</span>
+                        <span class="slider-value" id="vertical-val">0</span>
+                    </div>
+                    <input type="range" id="vertical" min="-5" max="5" value="0" step="0.5">
+                </div>
+            </div>
+
+            <button onclick="plotCustomGraph()">Plot Graph</button>
+
+            <div class="plot-container">
+                <div id="custom-plot"></div>
+            </div>
+        </div>
+    </div>
+
+<!-- STATISTICS TAB -->
+<div id="statistics-tab" class="tab-content" style="padding-top: 10px; border-radius: 20px;">
+    <div class="stats-header">
+        <h2> Statistics & Probability</h2>
+        <p>Comprehensive statistical analysis and probability distributions</p>
+    </div>
+
+    <!-- Operation Selector -->
+    <div class="stats-operation-selector">
+        <div class="operation-card" onclick="selectStatsOperation('descriptive')">
+            <div class="icon"></div>
+            <div class="title">Descriptive Statistics</div>
+            <div class="description">Mean, median, mode, std dev</div>
+        </div>
+        
+        <div class="operation-card" onclick="selectStatsOperation('normal')">
+            <div class="icon"></div>
+            <div class="title">Normal Distribution</div>
+            <div class="description">Bell curve, probabilities</div>
+        </div>
+        
+        <div class="operation-card" onclick="selectStatsOperation('binomial')">
+            <div class="icon"></div>
+            <div class="title">Binomial Distribution</div>
+            <div class="description">Success/failure trials</div>
+        </div>
+        
+        <div class="operation-card" onclick="selectStatsOperation('poisson')">
+            <div class="icon"></div>
+            <div class="title">Poisson Distribution</div>
+            <div class="description">Event occurrences</div>
+        </div>
+        
+        <div class="operation-card" onclick="selectStatsOperation('hypothesis')">
+            <div class="icon"></div>
+            <div class="title">Hypothesis Testing</div>
+            <div class="description">t-test, z-test</div>
+        </div>
+        
+        <div class="operation-card" onclick="selectStatsOperation('regression')">
+            <div class="icon"></div>
+            <div class="title">Regression Analysis</div>
+            <div class="description">Linear, polynomial</div>
+        </div>
+        
+        <div class="operation-card" onclick="selectStatsOperation('correlation')">
+            <div class="icon"></div>
+            <div class="title">Correlation</div>
+            <div class="description">Pearson, Spearman</div>
+        </div>
+    </div>
+
+    <!-- Dynamic Input Section -->
+    <div id="stats-input-section" class="data-input-section" style="display: none;">
+        <!-- Content will be populated by JavaScript -->
+    </div>
+
+    <button id="stats-calculate-btn" onclick="calculateStatistics()" style="display: none; width: 100%; padding: 16px; font-size: 16px; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; cursor: pointer; margin-top: 20px; transition: all 0.3s ease;">
+         Calculate
+    </button>
+
+    <div id="stats-error-message" class="error-message"></div>
+
+    <!-- Results Section -->
+    <div class="results-section" id="stats-results-section" style="display: none;">
+        <h2>Results</h2>
+        
+        <div class="info-panel" id="stats-info-panel"></div>
+        
+        <div class="plot-container">
+            <div id="stats-plot"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentStatsOperation = null;
+
+function selectStatsOperation(operation) {
+    currentStatsOperation = operation;
+    
+    // Update UI
+    document.querySelectorAll('.operation-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    event.currentTarget.classList.add('selected');
+    
+    document.getElementById('stats-results-section').style.display = 'none';
+    document.getElementById('stats-info-panel').innerHTML = '';
+    document.getElementById('stats-plot').innerHTML = '';
+    document.getElementById('stats-error-message').innerText = '';
+
+    // Show input section
+    const inputSection = document.getElementById('stats-input-section');
+    inputSection.style.display = 'block';
+    inputSection.innerHTML = getInputFormForOperation(operation);
+    
+    document.getElementById('stats-calculate-btn').style.display = 'block';
+}
+
+function getInputFormForOperation(operation) {
+    switch(operation) {
+        case 'descriptive':
+            return `
+                <h3>Enter Your Data</h3>
+                <p style="color: #666; margin-bottom: 15px;">Enter numbers separated by commas or spaces</p>
+                <textarea id="stats-data" placeholder="Example: 23, 45, 67, 34, 56, 78, 90, 12, 45, 67"></textarea>
+                
+                <div class="csv-upload-zone" onclick="document.getElementById('csv-file').click()">
+                    <input type="file" id="csv-file" accept=".csv" onchange="handleCSVUpload(event)">
+                    <div style="font-size: 48px;">📁</div>
+                    <div style="margin-top: 10px; color: #667eea; font-weight: bold;">Upload CSV File</div>
+                    <div style="color: #666; font-size: 14px;">or click to browse</div>
+                </div>
+            `;
+            
+        case 'normal':
+            return `
+                <h3>Normal Distribution Parameters</h3>
+                <div class="input-grid-2">
+                    <div>
+                        <label>Mean (μ):</label>
+                        <input type="number" id="normal-mean" value="0" step="0.1">
+                    </div>
+                    <div>
+                        <label>Standard Deviation (σ):</label>
+                        <input type="number" id="normal-std" value="1" step="0.1" min="0.1">
+                    </div>
+                </div>
+                <div>
+                    <label>X Value (optional - for probability calculation):</label>
+                    <input type="number" id="normal-x" placeholder="e.g., 1.5" step="0.1">
+                </div>
+            `;
+            
+        case 'binomial':
+            return `
+                <h3>Binomial Distribution Parameters</h3>
+                <div class="input-grid-2">
+                    <div>
+                        <label>Number of Trials (n):</label>
+                        <input type="number" id="binomial-n" value="10" min="1">
+                    </div>
+                    <div>
+                        <label>Probability of Success (p):</label>
+                        <input type="number" id="binomial-p" value="0.5" step="0.01" min="0" max="1">
+                    </div>
+                </div>
+                <p style="color: #666; margin-top: 10px; font-size: 14px;">
+                    Example: 10 coin flips with 50% chance of heads
+                </p>
+            `;
+            
+        case 'poisson':
+            return `
+                <h3>Poisson Distribution Parameters</h3>
+                <div>
+                    <label>Lambda (λ) - Average rate:</label>
+                    <input type="number" id="poisson-lambda" value="3" step="0.1" min="0.1">
+                </div>
+                <p style="color: #666; margin-top: 10px; font-size: 14px;">
+                    Example: Average 3 customer arrivals per hour
+                </p>
+            `;
+            
+        case 'hypothesis':
+            return `
+                <h3>Hypothesis Testing</h3>
+                <div style="margin-bottom: 15px;">
+                    <label>Test Type:</label>
+                    <select id="hypothesis-type" onchange="updateHypothesisInputs()">
+                        <option value="one_sample_t">One-Sample t-Test</option>
+                        <option value="two_sample_t">Two-Sample t-Test</option>
+                        <option value="z_test">Z-Test (known σ)</option>
+                    </select>
+                </div>
+                
+                <div id="hypothesis-inputs">
+                    <label>Sample Data:</label>
+                    <textarea id="hypothesis-data" placeholder="Example: 23, 45, 67, 34, 56"></textarea>
+                    
+                    <div class="input-grid-2" style="margin-top: 15px;">
+                        <div>
+                            <label>Population Mean (μ₀):</label>
+                            <input type="number" id="hypothesis-mu0" value="50" step="0.1">
+                        </div>
+                        <div>
+                            <label>Significance Level (α):</label>
+                            <input type="number" id="hypothesis-alpha" value="0.05" step="0.01" min="0.01" max="0.99">
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+        case 'regression':
+            return `
+                <h3>Regression Analysis</h3>
+                <div style="margin-bottom: 15px;">
+                    <label>Regression Type:</label>
+                    <select id="regression-type">
+                        <option value="linear">Linear Regression</option>
+                        <option value="polynomial">Polynomial Regression</option>
+                    </select>
+                </div>
+                
+                <div id="polynomial-degree" style="display: none; margin-bottom: 15px;">
+                    <label>Polynomial Degree:</label>
+                    <input type="number" id="poly-degree" value="2" min="2" max="5">
+                </div>
+                
+                <div class="input-grid-2">
+                    <div>
+                        <label>X Values (independent):</label>
+                        <textarea id="regression-x" placeholder="Example: 1, 2, 3, 4, 5"></textarea>
+                    </div>
+                    <div>
+                        <label>Y Values (dependent):</label>
+                        <textarea id="regression-y" placeholder="Example: 2, 4, 5, 4, 5"></textarea>
+                    </div>
+                </div>
+                
+                <script>
+                    document.getElementById('regression-type').addEventListener('change', function() {
+                        document.getElementById('polynomial-degree').style.display = 
+                            this.value === 'polynomial' ? 'block' : 'none';
+                    });
+                </scri` + `pt>
+            `;
+            
+        case 'correlation':
+            return `
+                <h3>Correlation Analysis</h3>
+                <p style="color: #666; margin-bottom: 15px;">Measure the strength and direction of relationship between two variables</p>
+                
+                <div class="input-grid-2">
+                    <div>
+                        <label>X Values:</label>
+                        <textarea id="correlation-x" placeholder="Example: 1, 2, 3, 4, 5"></textarea>
+                    </div>
+                    <div>
+                        <label>Y Values:</label>
+                        <textarea id="correlation-y" placeholder="Example: 2, 4, 5, 4, 5"></textarea>
+                    </div>
+                </div>
+            `;
+    }
+}
+
+function handleCSVUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            // Simple CSV parsing - take all numbers
+            const numbers = text.match(/[-+]?\d*\.?\d+/g);
+            if (numbers) {
+                document.getElementById('stats-data').value = numbers.join(', ');
+            }
+        };
+        reader.readAsText(file);
+    }
+}
+
+function updateHypothesisInputs() {
+    const testType = document.getElementById('hypothesis-type').value;
+    const inputsDiv = document.getElementById('hypothesis-inputs');
+    
+    if (testType === 'two_sample_t') {
+        inputsDiv.innerHTML = `
+            <label>Sample 1 Data:</label>
+            <textarea id="hypothesis-data1" placeholder="Example: 23, 45, 67, 34, 56" style="width: 100%; min-height: 60px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px;"></textarea>
+            
+            <label>Sample 2 Data:</label>
+            <textarea id="hypothesis-data2" placeholder="Example: 28, 42, 71, 39, 61" style="width: 100%; min-height: 60px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px;"></textarea>
+            
+            <div>
+                <label>Significance Level (α):</label>
+                <input type="number" id="hypothesis-alpha" value="0.05" step="0.01" min="0.01" max="0.99" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+            </div>
+        `;
+    } else if (testType === 'z_test') {
+        inputsDiv.innerHTML = `
+            <label>Sample Data:</label>
+            <textarea id="hypothesis-data" placeholder="Example: 23, 45, 67, 34, 56" style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 15px;"></textarea>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Population Mean (μ₀):</label>
+                    <input type="number" id="hypothesis-mu0" value="50" step="0.1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                </div>
+                <div>
+                    <label>Population σ (known):</label>
+                    <input type="number" id="hypothesis-sigma" value="10" step="0.1" min="0.1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                </div>
+                <div>
+                    <label>Significance Level (α):</label>
+                    <input type="number" id="hypothesis-alpha" value="0.05" step="0.01" min="0.01" max="0.99" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                </div>
+            </div>
+        `;
+    } else {
+        // one_sample_t (default)
+        inputsDiv.innerHTML = `
+            <label>Sample Data:</label>
+            <textarea id="hypothesis-data" placeholder="Example: 23, 45, 67, 34, 56" style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 15px;"></textarea>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Population Mean (μ₀):</label>
+                    <input type="number" id="hypothesis-mu0" value="50" step="0.1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                </div>
+                <div>
+                    <label>Significance Level (α):</label>
+                    <input type="number" id="hypothesis-alpha" value="0.05" step="0.01" min="0.01" max="0.99" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                </div>
+            </div>
+        `;
+    }
+}
+</script>
+
+    <!-- Load module files BEFORE app.js -->
+    <script src="js/algebra.js"></script>
+    <script src="js/geometry.js"></script>
+    <script src="js/calculus.js"></script>
+    <!-- Load main app -->
+    <script src="js/app.js"></script>
+    <!-- Load custom graph script -->
+    <script src="js/script.js"></script>
+    <script src="js/statistics.js"></script>
+</body>
+</html>

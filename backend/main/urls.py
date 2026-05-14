@@ -21,10 +21,12 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # path('modules/', include('document_summary.urls')),  # commented — not needed now
+    # path('modules/', include('document_summary.urls')),
     path('modules/', include('modules.urls')),             # Emotion TTS lives here
+    path('visualization/', include('visualization.urls')), # Manim Visualizer
     path('translate/', include('translate.urls')),       # commented — package not installed
-    path('mathocr/', include('mathocr.urls')),           # commented — package not installed
+    path('mathocr/', include('mathocr.urls')),
+    path('mathcompute/', include('mathcompute.urls')),
 ]
 
 # Serve media files in development

@@ -85,17 +85,22 @@ def nllb(request):
         )
 
     # -----------------------------
-    # FETCH LATEST TRANSCRIPT
+    # GET TEXT TO TRANSLATE
     # -----------------------------
-    try:
-        latest = Transcript.objects.latest("created_at")
-    except Transcript.DoesNotExist:
-        return JsonResponse({"error": "No transcript found"}, status=404)
+    text = request.POST.get("text")
+    source_lan = "en"
 
-    if not latest.transcript_text or not latest.transcript_text.strip():
+    if not text:
+        try:
+            latest = Transcript.objects.latest("created_at")
+            text = latest.transcript_text
+            source_lan = latest.source_lan or "en"
+        except Transcript.DoesNotExist:
+            return JsonResponse({"error": "No transcript found"}, status=404)
+
+    if not text:
         return JsonResponse({"error": "Transcript text is empty"}, status=400)
 
-    source_lan = latest.source_lan or "en"
     if source_lan not in ALLOWED_LANGS:
         source_lan = "en"
 
@@ -103,7 +108,7 @@ def nllb(request):
     # CALL NLLB SERVICE
     # -----------------------------
     payload = {
-        "text": latest.transcript_text,
+        "text": text,
         "source_lan": source_lan,
         "target_lan": target_lan,
     }
@@ -121,6 +126,7 @@ def nllb(request):
         )
 
     if response.status_code != 200:
+        print(f"❌ Translation Error: {response.status_code} - {response.text}")
         return JsonResponse(
             {"error": "Translation failed", "details": response.text},
             status=500
@@ -128,8 +134,8 @@ def nllb(request):
 
     return JsonResponse({
         "status": "success",
-        "original_text": latest.transcript_text,
-        "translated_text": response.json().get("translated_text", ""),
+        "original_text": text,
+        "translated_text": response.json().get("translated_text") or response.json().get("translation") or "",
         "source_language": source_lan,
         "target_language": target_lan,
     })
