@@ -48,7 +48,15 @@ const modules = [
     color: "from-orange-500 to-orange-600",
     href: "/manim-visualizer",
   },
-]
+  {
+    id: "story-generator",
+    title: "Story Video Generator",
+    description: "Transform your narratives into cinematic visualizations with AI",
+    icon: Sparkles,
+    color: "from-purple-600 to-blue-600",
+    href: "/story-generator",
+  },
+];
 
 export default function Home() {
   const [hoveredId, setHoveredId] = useState<string | null>(null)

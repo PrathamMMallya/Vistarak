@@ -1,6 +1,9 @@
 "use client"
 
-import { Bell, User, Search, Menu } from "lucide-react"
+import { 
+  Bell, User, Search, Menu, 
+  FileText, Languages, Mic, Calculator, Settings, LayoutDashboard, Film 
+} from "lucide-react"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -10,12 +13,14 @@ export function Navbar() {
   const pathname = usePathname()
 
   const navItems = [
-    { icon: Menu, label: "Dashboard", href: "/" },
-    { icon: Menu, label: "Video Transcription", href: "/video-transcription" },
-    { icon: Menu, label: "OCR", href: "/ocr" },
-    { icon: Menu, label: "Text-to-Speech", href: "/tts" },
-    { icon: Menu, label: "Math Visualizer", href: "/math-visualizer" },
-    { icon: Menu, label: "Settings", href: "/settings" },
+    { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+    { icon: FileText, label: "Video Transcription", href: "/video-transcription" },
+    { icon: Languages, label: "OCR", href: "/ocr" },
+    { icon: Mic, label: "Text-to-Speech", href: "/tts" },
+    { icon: Calculator, label: "Math Visualization", href: "/mathcompute" },
+    { icon: Film, label: "Manim Visualizer", href: "/manim-visualizer" },
+    { icon: Film, label: "Story Generator", href: "/story-generator" },
+    { icon: Settings, label: "Settings", href: "/settings" },
   ]
 
   return (

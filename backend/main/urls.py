@@ -27,6 +27,7 @@ urlpatterns = [
     path('translate/', include('translate.urls')),       # commented — package not installed
     path('mathocr/', include('mathocr.urls')),
     path('mathcompute/', include('mathcompute.urls')),
+    path('story/', include('story.urls')),
 ]
 
 # Serve media files in development
