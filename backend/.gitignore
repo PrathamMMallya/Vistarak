@@ -19,3 +19,11 @@ context_engine/emotion_model/
 # Manim temporary files
 temp_manim/
 media/
+
+main/__pycache__/
+modules/__pycache__/
+modules/services/__pycache__/
+visualization/__pycache__/
+context_engine/__pycache__/
+core/__pycache__/
+
