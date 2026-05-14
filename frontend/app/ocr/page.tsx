@@ -24,7 +24,7 @@ export default function OCR() {
   useEffect(() => {
     // Import MathLive dynamically
     import('mathlive').then((mathlive) => {
-      mathlive.MathfieldElement.fontsDirectory = '/mathcompute/libs/fonts';
+      mathlive.MathfieldElement.fontsDirectory = '/mathcompute/libs/fonts/';
       if (mathFieldRef.current && latexOutput) {
         mathFieldRef.current.value = latexOutput
         
