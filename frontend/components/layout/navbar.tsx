@@ -12,12 +12,9 @@ export function Navbar() {
   const navItems = [
     { icon: Menu, label: "Dashboard", href: "/" },
     { icon: Menu, label: "Video Transcription", href: "/video-transcription" },
-    { icon: Menu, label: "Document Translation", href: "/document-translation" },
     { icon: Menu, label: "OCR", href: "/ocr" },
-    { icon: Menu, label: "Context Translation", href: "/context-engine" },
     { icon: Menu, label: "Text-to-Speech", href: "/tts" },
     { icon: Menu, label: "Math Visualizer", href: "/math-visualizer" },
-    { icon: Menu, label: "Summarizer", href: "/summarizer" },
     { icon: Menu, label: "Settings", href: "/settings" },
   ]
 

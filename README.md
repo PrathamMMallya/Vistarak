@@ -24,3 +24,11 @@ git commit -m "Add tutorial18 changes"
 
 # Step 8: Push
 git push origin Edu_platform
+
+
+docker run -d \
+  --name sttv2 \
+
+  -p 9003:8003 \
+  -p 9004:8004 \
+  final_imageo

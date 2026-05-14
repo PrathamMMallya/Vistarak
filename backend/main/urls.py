@@ -23,8 +23,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # path('modules/', include('document_summary.urls')),  # commented — not needed now
     path('modules/', include('modules.urls')),             # Emotion TTS lives here
-    # path('translate/', include('translate.urls')),       # commented — package not installed
-    # path('mathocr/', include('mathocr.urls')),           # commented — package not installed
+    path('translate/', include('translate.urls')),       # commented — package not installed
+    path('mathocr/', include('mathocr.urls')),           # commented — package not installed
 ]
 
 # Serve media files in development

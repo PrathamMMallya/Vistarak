@@ -172,62 +172,44 @@ def merge_segments_from_chunks(chunk_results):
 
 
 def transcribe_with_chunking(audio_file, model, device, chunk_length=30.0, stride=5.0, language=None):
-    """
-    Transcribe audio file using chunking strategy.
-    
-    Args:
-        audio_file: path to audio file
-        model: WhisperX model
-        device: cuda or cpu
-        chunk_length: length of each chunk in seconds
-        stride: overlap between chunks in seconds
-        language: language code or None for auto-detect
-    
-    Returns:
-        dict with 'segments' and 'language'
-    """
     print(f"📊 Loading audio for chunked processing...")
     
-    # Load full audio
     audio_array = whisperx.load_audio(audio_file)
     sample_rate = 16000
     duration = len(audio_array) / sample_rate
     
     print(f"📊 Audio duration: {duration:.2f}s")
     
-    # Create chunks
+    # ✅ Detect language ONCE using only the first 30s, before chunking
+    if language is None:
+        print("🌐 Detecting language from first 30s...")
+        first_30s = audio_array[:30 * sample_rate]
+        detect_result = model.transcribe(first_30s, batch_size=16, language=None)
+        language = detect_result.get("language", "en")
+        print(f"🌐 Detected language: {language} — will use for all chunks")
+    
     chunks = create_audio_chunks(audio_array, sample_rate, chunk_length, stride)
     print(f"📊 Created {len(chunks)} chunks (chunk_length={chunk_length}s, stride={stride}s)")
     
-    # Process each chunk
     chunk_results = []
-    detected_language = language
     
     for i, (chunk_audio, start_time, end_time) in enumerate(chunks, 1):
         print(f"🔄 Processing chunk {i}/{len(chunks)} ({start_time:.1f}s - {end_time:.1f}s)...")
         
-        # Transcribe chunk
-        result = model.transcribe(chunk_audio, batch_size=16, language=detected_language)
-        
-        # Detect language from first chunk if not specified
-        if detected_language is None and 'language' in result:
-            detected_language = result['language']
-            print(f"🌐 Detected language: {detected_language}")
-        
+        # ✅ Always pass the detected language — no re-detection
+        result = model.transcribe(chunk_audio, batch_size=16, language=language)
         chunk_results.append((result['segments'], start_time))
         
-        # Clear some memory between chunks
         if i % 5 == 0:
             gc.collect()
     
-    # Merge all segments
     print(f"🔗 Merging {len(chunk_results)} chunks...")
     merged_segments = merge_segments_from_chunks(chunk_results)
     print(f"✅ Merged into {len(merged_segments)} segments")
     
     return {
         'segments': merged_segments,
-        'language': detected_language or 'en'
+        'language': language
     }
 
 

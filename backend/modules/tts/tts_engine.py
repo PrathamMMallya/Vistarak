@@ -26,7 +26,7 @@ from .prosody_engine import apply_prosody, get_generation_params
 CHATTERBOX_DIR = getattr(
     settings,
     "CHATTERBOX_PACKAGE_DIR",
-    r"C:\Users\prath\Downloads\chatterbox-emotion-tts",
+    r"/backend/tts_output/chatterbox-emotion-tts",
 )
 if CHATTERBOX_DIR not in sys.path:
     sys.path.insert(0, CHATTERBOX_DIR)

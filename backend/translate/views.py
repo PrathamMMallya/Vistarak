@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from modules.models import Transcript
 
-FASTAPI_TRANSLATE_URL = "http://127.0.0.1:8903/translate"
+FASTAPI_TRANSLATE_URL = "http://172.16.2.131:8903/translate"
 UPLOAD_DIR = "temp_translate_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 

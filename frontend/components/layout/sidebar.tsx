@@ -8,12 +8,9 @@ import { FileText, Languages, Video, BookOpen, Zap, Mic2, Calculator, Settings, 
 const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },
   { icon: Video, label: "Video Transcription", href: "/video-transcription" },
-  { icon: FileText, label: "Document Translation", href: "/document-translation" },
   { icon: BookOpen, label: "OCR", href: "/ocr" },
-  { icon: Zap, label: "Context Translation", href: "/context-engine" },
   { icon: Mic2, label: "Text-to-Speech", href: "/tts" },
   { icon: Calculator, label: "Math Visualizer", href: "/math-visualizer" },
-  { icon: Languages, label: "Summarizer", href: "/summarizer" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ]
 

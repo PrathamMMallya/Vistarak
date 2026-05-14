@@ -43,7 +43,7 @@ def extract_audio_via_grpc(video_bytes):
     print(f"📹 Video size: {len(video_bytes)} bytes ({len(video_bytes) / (1024**3):.2f} GB)")
 
     channel = grpc.insecure_channel(
-        "127.0.0.1:8004",
+        "172.16.2.131:9004",
         options=[
             ("grpc.max_send_message_length", -1),
             ("grpc.max_receive_message_length", -1),
@@ -74,7 +74,7 @@ def is_grpc_alive():
     channel = None
     try:
         channel = grpc.insecure_channel(
-            "127.0.0.1:8004",
+            "172.16.2.131:9004",
             options=[
                 ('grpc.enable_http_proxy', 0),
             ]

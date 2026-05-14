@@ -51,7 +51,7 @@ export default function OCR() {
       const formData = new FormData()
       formData.append('file', imageFile)
       
-      const response = await fetch("http://127.0.0.1:8000/mathocr/latex/", {
+      const response = await fetch("http://172.16.2.131:9000/mathocr/latex/", {
         method: "POST",
         body: formData,
       })

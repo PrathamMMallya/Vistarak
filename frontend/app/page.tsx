@@ -14,14 +14,7 @@ const modules = [
     color: "from-blue-500 to-blue-600",
     href: "/video-transcription",
   },
-  {
-    id: "document-translation",
-    title: "Document Translation",
-    description: "Translate PDF and Word documents while preserving formatting",
-    icon: FileText,
-    color: "from-cyan-500 to-cyan-600",
-    href: "/document-translation",
-  },
+
   {
     id: "ocr",
     title: "OCR & Editable Docs",
@@ -30,14 +23,7 @@ const modules = [
     color: "from-purple-500 to-purple-600",
     href: "/ocr",
   },
-  {
-    id: "context-engine",
-    title: "Context-Aware Translation",
-    description: "Preserve sentiment, emotion, and tone in your translations",
-    icon: Zap,
-    color: "from-orange-500 to-orange-600",
-    href: "/context-engine",
-  },
+
   {
     id: "tts",
     title: "Emotion TTS",
@@ -54,14 +40,7 @@ const modules = [
     color: "from-emerald-500 to-emerald-600",
     href: "/math-visualizer",
   },
-  {
-    id: "summarizer",
-    title: "Smart Summarizer",
-    description: "Create intelligent summaries with cross-language support",
-    icon: Languages,
-    color: "from-indigo-500 to-indigo-600",
-    href: "/summarizer",
-  },
+
 ]
 
 export default function Home() {

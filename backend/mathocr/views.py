@@ -3,7 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 import requests
 import re
 
-DOCKER_URL = "http://127.0.0.1:8006"
+DOCKER_URL = "http://172.16.2.131:9006"
 
 def clean_latex(text):
     if not text:
@@ -48,7 +48,7 @@ def img_to_latex(request):
         
         try:
             files = {'file': (file.name, file.read(), file.content_type or 'image/png')}
-            response = requests.post(f"{DOCKER_URL}/convert", files=files, timeout=120)
+            response = requests.post(f"{DOCKER_URL}/convert", files=files, timeout=240)
             
             if response.status_code == 200:
                 print(response.json())
