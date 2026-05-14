@@ -1,13 +1,18 @@
 import ast
+import logging
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import uuid
 import json
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from typing import Any
+
+logger = logging.getLogger("manim_service")
+logger.setLevel(logging.DEBUG)
 
 try:
     from dotenv import load_dotenv  # type: ignore
@@ -18,8 +23,59 @@ except Exception:
     pass
 
 
-SYSTEM_PROMPT = """\
+def _has_latex() -> bool:
+    """Check whether a LaTeX compiler is available and functional on this system."""
+    try:
+        # 1. Basic version check
+        result = subprocess.run(
+            ["latex", "--version"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            logger.warning("[INIT] LaTeX command 'latex' not found or failed.")
+            return False
+
+        # 2. Functional check (test compilation)
+        # We try to compile a tiny snippet to ensure the installation is functional
+        # and not blocked by missing packages or dialogs.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tex_content = r"\documentclass{article}\begin{document}X\end{document}"
+            tex_file = os.path.join(tmp_dir, "test.tex")
+            with open(tex_file, "w", encoding="utf-8") as f:
+                f.write(tex_content)
+            
+            # Run latex in non-interactive mode
+            test_res = subprocess.run(
+                ["latex", "-interaction=batchmode", "test.tex"],
+                cwd=tmp_dir,
+                capture_output=True,
+                timeout=15,
+            )
+            if test_res.returncode != 0:
+                logger.warning("[INIT] LaTeX found but test compilation failed (exit %d).", test_res.returncode)
+                return False
+        
+        logger.info("[INIT] LaTeX available and functional.")
+        return True
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
+        logger.warning("[INIT] LaTeX check failed: %s", str(e))
+        return False
+
+
+LATEX_AVAILABLE: bool = _has_latex()
+
+_LATEX_RULE_ALLOWED = (
+    "13. You MAY use Tex(...) and MathTex(...) for mathematical expressions — LaTeX is available on this system."
+)
+_LATEX_RULE_BLOCKED = (
+    "13. Do NOT use Tex(...) or MathTex(...); use Text(...) or MarkupText(...) only — LaTeX is NOT installed."
+)
+
+SYSTEM_PROMPT = f"""\
 You are an expert at writing Manim Community Edition (v0.20.1) Python code.
+
+CRITICAL: Do NOT output any thinking, reasoning, explanations, or text before/after the code.
+Output ONLY pure Python code. No markdown, no comments, no anything else.
 
 RULES — follow every single one:
 1. Output ONLY valid Python code. No markdown fences, no explanation, no comments outside the code.
@@ -34,12 +90,15 @@ RULES — follow every single one:
 10. Ensure all objects are properly added to the scene before animating them.
 11. Do NOT use end_angle for Arc/Angle; use start_angle and angle instead.
 12. Use 3D points (x, y, 0) for VMobject/Line points; do not use 2D tuples.
-13. Do NOT use Tex(...) or MathTex(...); use Text(...) or MarkupText(...) only.
+{_LATEX_RULE_ALLOWED if LATEX_AVAILABLE else _LATEX_RULE_BLOCKED}
 14. Do NOT pass `z_range` to 2D coordinate systems like `Axes` or `NumberPlane`; use `ThreeDAxes` if 3D is needed.
 """
 
 REVIEW_SYSTEM_PROMPT = """\
 You are a strict Manim Community Edition (v0.20.1) code reviewer.
+
+CRITICAL: Do NOT output any thinking, reasoning, explanations, or text before/after the code.
+Output ONLY pure Python code. No markdown, no comments, no anything else.
 
 Goals:
 1. Validate the code renders without errors in Manim v0.20.1.
@@ -55,11 +114,16 @@ Rules:
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
+# --- Provider Config ---
+LLM_PROVIDER = os.environ.get("PROVIDER", "GROQ").upper()
+LLAMA_URL = os.environ.get("LLAMA_URL", "")
+
 MAX_BASE_CODE_PROMPT_CHARS = 9000
 MAX_CONTINUATION_CODE_PROMPT_CHARS = 11000
 MAX_REVIEW_CODE_CHARS = 10000
 MAX_HISTORY_ITEMS = 6
 MAX_HISTORY_ITEM_CHARS = 220
+MAX_RENDER_RETRIES = 3
 
 BLOCKED_MODULES = {
     "os",
@@ -117,11 +181,66 @@ def _normalize_ollama_host(host: str | None) -> str:
 
 
 def _extract_code(raw: str) -> str:
-    m = re.search(r"```(?:python)?\s*\n(.*?)```", raw, re.DOTALL)
-    return m.group(1).strip() if m else raw.strip()
+    if not raw or not raw.strip():
+        raise ValueError("Groq returned empty response")
+    
+    cleaned = raw
+    
+    # Strip Qwen reasoning tags (aggressive approach)
+    # Handle both <think>...</think> and <think> without closing tag
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL)
+    cleaned = re.sub(r"<think>.*?(?=from\s+manim|```|class\s+GeneratedScene)", "", cleaned, flags=re.DOTALL)
+    cleaned = cleaned.strip()
+    
+    # If after stripping think tags we're left with almost nothing, it's likely reasoning-only
+    if not cleaned or len(cleaned) < 50:
+        raise ValueError(
+            f"LLM returned only reasoning text, no code. This suggests the system prompt is not being followed. "
+            f"Please verify:\n"
+            f"1. GROQ_API_KEY is valid\n"
+            f"2. Qwen model is accessible\n"
+            f"3. Try disabling Qwen's reasoning mode or use a different model.\n"
+            f"Raw response (first 200 chars): {raw[:200]}"
+        )
+    
+    # Try to extract code from markdown fences first
+    m = re.search(r"```(?:python)?\s*\n(.*?)```", cleaned, re.DOTALL)
+    if m:
+        extracted = m.group(1).strip()
+        if extracted and re.search(r"(from\s+manim|class\s+\w+\s*\(\s*Scene)", extracted):
+            return extracted
+    
+    # Find code starting from "from manim import *" or "class GeneratedScene"
+    code_start_patterns = [
+        r"(from\s+manim\s+import\s+\*.*)",
+        r"(class\s+GeneratedScene\s*\(.*)",
+    ]
+    
+    for pattern in code_start_patterns:
+        m = re.search(pattern, cleaned, flags=re.DOTALL)
+        if m:
+            extracted = m.group(1).strip()
+            if extracted:
+                return extracted
+    
+    # Last resort: if cleaned text looks like Python, return it
+    if cleaned and re.match(r"^\s*(from|import|class|def)", cleaned):
+        return cleaned
+    
+    raise ValueError(
+        f"Failed to extract code from response. LLM may be outputting reasoning instead of code.\n"
+        f"Raw response (first 500 chars): {raw[:500]}"
+    )
 
 
 def _validate_scene_class(code: str) -> str:
+    if not code or not code.strip():
+        raise ValueError("Generated code is empty")
+    
+    # Additional check: ensure code doesn't look like reasoning/explanation
+    if code.lower().startswith(("okay", "sure", "let me", "i will", "first", "the user wants")) and "class" not in code.lower():
+        raise ValueError(f"Generated content appears to be explanation text, not code. Preview: {code[:200]}")
+    
     if "class GeneratedScene" not in code:
         m = re.search(r"class\s+(\w+)\s*\(\s*Scene\s*\)", code)
         if m:
@@ -129,7 +248,8 @@ def _validate_scene_class(code: str) -> str:
             code = code.replace(f"class {old_name}(Scene)", "class GeneratedScene(Scene)")
             code = code.replace(f"class {old_name} (Scene)", "class GeneratedScene(Scene)")
         else:
-            raise ValueError("Generated code does not contain a Scene subclass.")
+            code_preview = code[:300] if len(code) > 300 else code
+            raise ValueError(f"Generated code does not contain a Scene subclass. Code preview: {code_preview}")
     return code
 
 
@@ -185,8 +305,8 @@ def _validate_generated_code_or_raise(code: str) -> None:
         raise ValueError(
             "Invalid Manim API: VMobject.add_points(...) does not exist; use add_points_as_corners or set_points_as_corners."
         )
-    if re.search(r"\b(MathTex|Tex)\s*\(", code):
-        raise ValueError("Invalid pipeline rule: Tex/MathTex are not allowed; use Text/MarkupText.")
+    if not LATEX_AVAILABLE and re.search(r"\b(MathTex|Tex)\s*\(", code):
+        raise ValueError("Tex/MathTex require LaTeX which is not installed; use Text/MarkupText instead.")
     if re.search(r"\b(Axes|NumberPlane)\s*\([^)]*z_range", code):
         raise ValueError("Invalid Manim API: z_range is not supported for 2D Axes/NumberPlane; use ThreeDAxes instead.")
 
@@ -259,11 +379,16 @@ def _build_template_user_prompt(template: dict[str, Any], user_request: str) -> 
 
 
 def _build_retry_user_prompt(prompt: str, domain: str, error_hint: str) -> str:
+    latex_constraint = (
+        "- You MAY use Tex/MathTex for math — LaTeX IS available.\n"
+        if LATEX_AVAILABLE
+        else "- Do NOT use Tex/MathTex — LaTeX is NOT installed; use Text/MarkupText and unicode symbols.\n"
+    )
     return (
         f"Create a Manim animation for the following {domain} concept in Manim Community v0.20.1:\n\n"
         f"{prompt}\n\n"
-        "Fix the previous error and ensure the code renders in Manim Community v0.20.1.\n"
-        f"Error hint: {error_hint}\n\n"
+        "The previous attempt FAILED to render. Fix the error and ensure the code renders correctly.\n"
+        f"RENDER ERROR:\n{error_hint}\n\n"
         "Important constraints:\n"
         "- Do NOT use dot.animate.move_along(...) or any .move_along method.\n"
         "- If moving an object along a path, use MoveAlongPath(mobject, path) or an updater/UpdateFromAlphaFunc.\n"
@@ -271,66 +396,139 @@ def _build_retry_user_prompt(prompt: str, domain: str, error_hint: str) -> str:
         "- Do NOT use end_angle for Arc/Angle; use start_angle and angle (end - start).\n"
         "- Do NOT call add_points(...); for paths use add_points_as_corners([...]) or set_points_as_corners([...]).\n"
         "- Use 3D points (x, y, 0) when setting points for VMobject/Line/Path; do not pass 2D tuples.\n"
-        "- Do NOT use Tex/MathTex; render formulas with Text/MarkupText and unicode symbols.\n"
+        f"{latex_constraint}"
         "- Do NOT pass `z_range` to 2D coordinate systems like `Axes` or `NumberPlane`; use `ThreeDAxes` if 3D is needed.\n"
         "- Output ONLY valid Python code, one Scene class named GeneratedScene."
     )
 
 
-def _call_groq(user_prompt: str, model: str, system_prompt: str) -> str:
-    api_key = GROQ_API_KEY
-    if not api_key:
-        raise RuntimeError("GROQ_API_KEY is not set.")
+def _build_render_error_repair_prompt(code: str, error_hint: str) -> str:
+    """Build a prompt that sends the failing code + render error back to the LLM."""
+    latex_constraint = (
+        "- You MAY use Tex/MathTex for math — LaTeX IS available.\n"
+        if LATEX_AVAILABLE
+        else "- Do NOT use Tex/MathTex — LaTeX is NOT installed; use Text/MarkupText and unicode symbols.\n"
+    )
+    clipped_code = _clip_text_middle(code, MAX_REVIEW_CODE_CHARS)
+    return (
+        "The following Manim v0.20.1 code FAILED to render. Fix the error and return corrected code.\n\n"
+        f"RENDER ERROR:\n{error_hint}\n\n"
+        f"FAILING CODE:\n{clipped_code}\n\n"
+        "Constraints:\n"
+        f"{latex_constraint}"
+        "- Do NOT use end_angle; use start_angle and angle.\n"
+        "- Use 3D points (x, y, 0) for VMobject/Line.\n"
+        "- Do NOT pass z_range to Axes/NumberPlane.\n"
+        "- Output ONLY the corrected Python code, one Scene class named GeneratedScene."
+    )
+
+
+def _call_llm(user_prompt: str, model: str, system_prompt: str) -> str:
+    if LLM_PROVIDER == "LLAMA.CPP":
+        if not LLAMA_URL:
+            raise RuntimeError("LLAMA_URL is not set in .env while PROVIDER is set to LLAMA.CPP.")
+        url = f"{LLAMA_URL.rstrip('/')}/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        }
+        # For local Llama.cpp, we often use a dummy model name or the one it's loaded with
+        model_name = "local-model" 
+    else:
+        api_key = GROQ_API_KEY
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY environment variable is not set. Please set it before using the Manim generation service.")
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        }
+        model_name = model
+
+    if not user_prompt or not user_prompt.strip():
+        raise ValueError("User prompt is empty")
+
+    logger.info("[LLM REQUEST] provider=%s model=%s prompt_length=%d chars", LLM_PROVIDER, model_name, len(user_prompt))
 
     payload = json.dumps(
         {
-            "model": model,
+            "model": model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.3,
+            "temperature": 0.1,
             "max_tokens": 4096,
+            "stream": True,
         }
     ).encode("utf-8")
 
     request = Request(
-        "https://api.groq.com/openai/v1/chat/completions",
+        url,
         data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        },
+        headers=headers,
         method="POST",
     )
 
     try:
-        with urlopen(request, timeout=300) as response:
-            body = response.read().decode("utf-8")
+        response = urlopen(request, timeout=300)
     except HTTPError as e:
         details = e.read().decode("utf-8", errors="ignore") if hasattr(e, "read") else ""
-        raise RuntimeError(f"Groq request failed (HTTP {e.code}): {details or e.reason}") from e
+        raise RuntimeError(f"{LLM_PROVIDER} request failed (HTTP {e.code}): {details or e.reason}") from e
     except URLError as e:
-        raise RuntimeError(f"Could not reach Groq API: {e.reason}") from e
+        raise RuntimeError(f"Could not reach {LLM_PROVIDER} API: {e.reason}") from e
+
+    # ── Stream the response and print tokens live ──
+    collected_content: list[str] = []
+    print(f"\n{'='*60}", flush=True)
+    print(f"[LLM STREAM] model={model}", flush=True)
+    print(f"{'─'*60}", flush=True)
 
     try:
-        data = json.loads(body)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Invalid JSON response from Groq: {body[:500]}") from e
+        for raw_line in response:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line:
+                continue
+            if not line.startswith("data: "):
+                continue
+            data_str = line[len("data: "):]
+            if data_str.strip() == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data_str)
+            except json.JSONDecodeError:
+                continue
 
-    choices = data.get("choices", [])
-    if not choices:
-        raise RuntimeError("Groq returned an empty response.")
-    
-    content = choices[0].get("message", {}).get("content", "")
-    if not content.strip():
-        raise RuntimeError("Groq returned empty message content.")
+            if "error" in chunk:
+                error_msg = chunk.get("error", {}).get("message", "Unknown error")
+                raise RuntimeError(f"{LLM_PROVIDER} API error: {error_msg}")
+
+            delta = chunk.get("choices", [{}])[0].get("delta", {})
+            token = delta.get("content", "")
+            if token:
+                collected_content.append(token)
+                # Print each token live to stdout
+                sys.stdout.write(token)
+                sys.stdout.flush()
+    finally:
+        response.close()
+
+    print(f"\n{'─'*60}", flush=True)
+
+    content = "".join(collected_content)
+
+    if not content or not content.strip():
+        raise RuntimeError(f"{LLM_PROVIDER} returned empty streamed content.")
+
+    logger.info("[LLM RESPONSE] total_length=%d chars", len(content))
+    print(f"[LLM DONE] received {len(content)} chars", flush=True)
+    print(f"{'='*60}\n", flush=True)
 
     return content.strip()
 
 
-def _call_groq_review(code: str, error_hint: str | None = None) -> str:
+def _call_llm_review(code: str, error_hint: str | None = None) -> str:
     if len(code) > MAX_REVIEW_CODE_CHARS:
         raise RuntimeError("Review skipped: code too large for safe review payload.")
 
@@ -341,7 +539,8 @@ def _call_groq_review(code: str, error_hint: str | None = None) -> str:
         f"ERROR_HINT:\n{compact_error_hint}\n\n"
         f"CODE:\n{code}\n"
     )
-    return _call_groq(review_prompt, model=GROQ_MODEL, system_prompt=REVIEW_SYSTEM_PROMPT)
+    logger.info("[REVIEW] Sending code for review (code_len=%d, error_hint=%s)", len(code), compact_error_hint[:120])
+    return _call_llm(review_prompt, model=GROQ_MODEL, system_prompt=REVIEW_SYSTEM_PROMPT)
 
 
 def _review_with_feedback(
@@ -353,53 +552,58 @@ def _review_with_feedback(
     current = code
 
     if len(current) > MAX_REVIEW_CODE_CHARS:
+        logger.warning("[REVIEW] Skipping review — code too large (%d chars)", len(current))
         return current
 
-    for _ in range(max_rounds):
+    for round_num in range(1, max_rounds + 1):
+        logger.info("[REVIEW ROUND %d/%d] error_hint=%s", round_num, max_rounds, (error_hint or "None")[:120])
         try:
-            raw = _call_groq_review(current, error_hint=error_hint)
+            raw = _call_llm_review(current, error_hint=error_hint)
         except RuntimeError as e:
             msg = str(e)
             if "Request too large" in msg or "rate_limit_exceeded" in msg or "Review skipped" in msg:
+                logger.warning("[REVIEW] Skipping remaining rounds — %s", msg[:200])
                 return current
             raise
         reviewed = _validate_scene_class(_extract_code(raw))
         safe, reason = _is_code_safe(reviewed)
         if not safe:
-            raise RuntimeError(f"Groq review rejected for safety: {reason}")
+            raise RuntimeError(f"{LLM_PROVIDER} review rejected for safety: {reason}")
         try:
             _validate_generated_code_or_raise(reviewed)
+            logger.info("[REVIEW ROUND %d/%d] ✓ Passed validation", round_num, max_rounds)
             return reviewed
         except Exception as e:
             error_hint = str(e)[:300]
+            logger.warning("[REVIEW ROUND %d/%d] ✗ Validation failed: %s", round_num, max_rounds, error_hint[:200])
             current = reviewed
-    raise RuntimeError(f"Groq review failed to validate after {max_rounds} rounds.")
+    raise RuntimeError(f"{LLM_PROVIDER} review failed to validate after {max_rounds} rounds.")
 
 
 def generate_manim_code(prompt: str, domain: str) -> tuple[str, str]:
     user_prompt = _build_user_prompt(prompt, domain)
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL})"
+    return reviewed, f"{LLM_PROVIDER} → {LLM_PROVIDER} review"
 
 
 def generate_manim_code_from_base_code(base_code: str, user_request: str, domain: str) -> tuple[str, str]:
     user_prompt = _build_base_code_user_prompt(base_code=base_code, user_request=user_request, domain=domain)
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL}, base-code)"
+    return reviewed, f"{LLM_PROVIDER} → {LLM_PROVIDER} review (base-code)"
 
 
 def generate_manim_code_continuation(
@@ -417,32 +621,37 @@ def generate_manim_code_continuation(
         base_code=base_code,
     )
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL}, continuation)"
+    return reviewed, f"{LLM_PROVIDER} → {LLM_PROVIDER} review (continuation)"
 
 
 def generate_manim_code_from_template(template: dict[str, Any], user_request: str) -> tuple[str, str]:
     user_prompt = _build_template_user_prompt(template, user_request)
 
-    raw = _call_groq(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+    raw = _call_llm(user_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
     code = _validate_scene_class(_extract_code(raw))
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
 
     reviewed = _review_with_feedback(code)
-    return reviewed, f"Groq ({GROQ_MODEL}) → Groq review ({GROQ_MODEL}, template)"
+    return reviewed, f"{LLM_PROVIDER} → {LLM_PROVIDER} review (template)"
 
 
 def render_manim_to_mp4(code: str, timeout_s: int = 180) -> str:
     sid = uuid.uuid4().hex[:8]
-    work_dir = os.path.join(tempfile.gettempdir(), f"manim_{sid}")
+    # Use a local temporary directory within the project to avoid drive-crossing issues
+    # and potential permission problems in the system Temp directory.
+    base_tmp = os.path.join(os.path.dirname(os.path.dirname(__file__)), "temp_manim")
+    os.makedirs(base_tmp, exist_ok=True)
+    
+    work_dir = os.path.join(base_tmp, f"manim_{sid}")
     os.makedirs(work_dir, exist_ok=True)
 
     script_path = os.path.join(work_dir, "scene.py")
@@ -481,29 +690,67 @@ def render_manim_to_mp4(code: str, timeout_s: int = 180) -> str:
     raise FileNotFoundError("Manim did not produce an .mp4 file.")
 
 
+def _render_with_retries(
+    code: str,
+    provider: str,
+    timeout_s: int,
+    max_retries: int = MAX_RENDER_RETRIES,
+) -> tuple[str, str, str]:
+    """Try to render `code`. On failure, send the error back to the LLM and retry."""
+    current_code = code
+    last_error: Exception | None = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("[RENDER] Attempt %d/%d", attempt, max_retries)
+            video_path = render_manim_to_mp4(current_code, timeout_s=timeout_s)
+            suffix = f" -> render-repair x{attempt - 1}" if attempt > 1 else ""
+            logger.info("[RENDER] ✓ Success on attempt %d", attempt)
+            return video_path, current_code, (provider + suffix)
+        except Exception as render_err:
+            last_error = render_err
+            error_text = str(render_err)[:1500]
+            logger.warning(
+                "[RENDER] ✗ Attempt %d/%d failed:\n%s",
+                attempt, max_retries, error_text[:500],
+            )
+            print(f"\n{'!'*60}", flush=True)
+            print(f"[RENDER FAILED] Attempt {attempt}/{max_retries}", flush=True)
+            print(f"ERROR DETAILS:\n{error_text}", flush=True)
+            print(f"{'!'*60}\n", flush=True)
+
+            if attempt >= max_retries:
+                break
+
+            # ── Send the error + code back to the LLM for repair ──
+            logger.info("[RENDER-REPAIR] Querying LLM with render error for attempt %d...", attempt + 1)
+            repair_prompt = _build_render_error_repair_prompt(current_code, error_text)
+            try:
+                raw = _call_llm(repair_prompt, model=GROQ_MODEL, system_prompt=SYSTEM_PROMPT)
+                repaired = _validate_scene_class(_extract_code(raw))
+                safe, reason = _is_code_safe(repaired)
+                if not safe:
+                    logger.warning("[RENDER-REPAIR] Repaired code rejected for safety: %s", reason)
+                    break
+                _validate_generated_code_or_raise(repaired)
+                current_code = repaired
+                logger.info("[RENDER-REPAIR] LLM returned repaired code (%d chars), retrying render...", len(repaired))
+            except Exception as repair_err:
+                logger.warning("[RENDER-REPAIR] LLM repair itself failed: %s", str(repair_err)[:300])
+                break
+
+    raise RuntimeError(
+        f"Manim render failed after {max_retries} attempts. Last error: {last_error}"
+    )
+
+
 def generate_and_render(prompt: str, domain: str, timeout_s: int | None = None) -> tuple[str, str, str]:
     code, provider = generate_manim_code(prompt, domain)
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
     _validate_generated_code_or_raise(code)
-
-    try:
-        video_path = render_manim_to_mp4(code, timeout_s=timeout_s or 180)
-        return video_path, code, provider
-    except Exception as render_err:
-        repaired_code = _review_with_feedback(
-            code,
-            max_rounds=3,
-            initial_error_hint=str(render_err)[:1200],
-        )
-        safe2, reason2 = _is_code_safe(repaired_code)
-        if not safe2:
-            raise RuntimeError(f"Render-repair code was rejected for safety: {reason2}")
-        _validate_generated_code_or_raise(repaired_code)
-
-        video_path = render_manim_to_mp4(repaired_code, timeout_s=timeout_s or 180)
-        return video_path, repaired_code, (provider + " -> render-repair")
+    return _render_with_retries(code, provider, timeout_s=timeout_s or 180)
 
 
 def generate_and_render_from_base_code(
@@ -517,23 +764,7 @@ def generate_and_render_from_base_code(
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
     _validate_generated_code_or_raise(code)
-
-    try:
-        video_path = render_manim_to_mp4(code, timeout_s=timeout_s or 180)
-        return video_path, code, provider
-    except Exception as render_err:
-        repaired_code = _review_with_feedback(
-            code,
-            max_rounds=3,
-            initial_error_hint=str(render_err)[:1200],
-        )
-        safe2, reason2 = _is_code_safe(repaired_code)
-        if not safe2:
-            raise RuntimeError(f"Render-repair code was rejected for safety: {reason2}")
-        _validate_generated_code_or_raise(repaired_code)
-
-        video_path = render_manim_to_mp4(repaired_code, timeout_s=timeout_s or 180)
-        return video_path, repaired_code, (provider + " -> render-repair")
+    return _render_with_retries(code, provider, timeout_s=timeout_s or 180)
 
 
 def generate_and_render_continuation(
@@ -555,23 +786,7 @@ def generate_and_render_continuation(
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
     _validate_generated_code_or_raise(code)
-
-    try:
-        video_path = render_manim_to_mp4(code, timeout_s=timeout_s or 180)
-        return video_path, code, provider
-    except Exception as render_err:
-        repaired_code = _review_with_feedback(
-            code,
-            max_rounds=3,
-            initial_error_hint=str(render_err)[:1200],
-        )
-        safe2, reason2 = _is_code_safe(repaired_code)
-        if not safe2:
-            raise RuntimeError(f"Render-repair code was rejected for safety: {reason2}")
-        _validate_generated_code_or_raise(repaired_code)
-
-        video_path = render_manim_to_mp4(repaired_code, timeout_s=timeout_s or 180)
-        return video_path, repaired_code, (provider + " -> render-repair")
+    return _render_with_retries(code, provider, timeout_s=timeout_s or 180)
 
 
 def generate_and_render_from_template(
@@ -583,25 +798,8 @@ def generate_and_render_from_template(
     safe, reason = _is_code_safe(code)
     if not safe:
         raise RuntimeError(f"Generated code was rejected for safety: {reason}")
-
     _validate_generated_code_or_raise(code)
-
-    try:
-        video_path = render_manim_to_mp4(code, timeout_s=timeout_s or 180)
-        return video_path, code, provider
-    except Exception as render_err:
-        repaired_code = _review_with_feedback(
-            code,
-            max_rounds=3,
-            initial_error_hint=str(render_err)[:1200],
-        )
-        safe2, reason2 = _is_code_safe(repaired_code)
-        if not safe2:
-            raise RuntimeError(f"Render-repair code was rejected for safety: {reason2}")
-        _validate_generated_code_or_raise(repaired_code)
-
-        video_path = render_manim_to_mp4(repaired_code, timeout_s=timeout_s or 180)
-        return video_path, repaired_code, (provider + " -> render-repair")
+    return _render_with_retries(code, provider, timeout_s=timeout_s or 180)
 
 
 def render_base_code_directly(base_code: str, timeout_s: int | None = None) -> tuple[str, str, str]:
