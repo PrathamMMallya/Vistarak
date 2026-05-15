@@ -424,11 +424,13 @@ def _build_render_error_repair_prompt(code: str, error_hint: str) -> str:
 
 
 def _call_llm(user_prompt: str, model: str, system_prompt: str) -> str:
+    print(f"🤖 LLM Request -> Provider: {LLM_PROVIDER}, Model: {model}")
     if LLM_PROVIDER in ["LLAMA", "LLAMA.CPP"]:
         if not LLM_SERVER_URL:
             raise RuntimeError(f"LLM_SERVER_URL is not set in .env while LLM_PROVIDER is set to {LLM_PROVIDER}.")
         # Ensure the URL ends with the completions endpoint
         url = LLM_SERVER_URL.rstrip('/')
+        print(f"📡 Using local Llama server: {url}")
         if not url.endswith("/v1/chat/completions"):
             url = f"{url}/v1/chat/completions"
         headers = {
