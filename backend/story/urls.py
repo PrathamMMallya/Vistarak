@@ -4,4 +4,5 @@ from . import views
 urlpatterns = [
     path('preview/', views.serve_default_story, name='story_preview'),
     path('generate/', views.generate_story, name='story_generate'),
+    path('config/', views.story_config, name='story_config'),
 ]

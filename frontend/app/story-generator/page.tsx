@@ -10,26 +10,60 @@ import { Badge } from "@/components/ui/badge"
 export default function StoryGenerator() {
   const [description, setDescription] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
-  const [videoUrl, setVideoUrl] = useState("http://localhost:8000/story/preview/")
+  const [status, setStatus] = useState("")
+  const [videoUrl, setVideoUrl] = useState("")
 
   const handleGenerate = async () => {
     if (!description.trim()) return
     setIsGenerating(true)
+    setStatus("Connecting to story engine...")
+    setVideoUrl("")
     
     try {
-      const response = await fetch("http://localhost:8000/story/generate/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description })
-      })
-      const data = await response.json()
-      if (data.video_url) {
-        // Append a timestamp to bypass caching if needed
-        setVideoUrl(`${data.video_url}?t=${Date.now()}`)
+      // 1. Get backend configuration
+      const configRes = await fetch("http://localhost:8000/story/config/")
+      const { server_url, ws_url } = await configRes.json()
+
+      // 2. Establish WebSocket connection
+      const ws = new WebSocket(ws_url)
+
+      ws.onopen = () => {
+        console.log("Connected to Story WS")
+        ws.send(JSON.stringify({ prompt: description }))
       }
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log("WS Update:", data)
+
+          if (data.status === "done") {
+            const videoId = data.message
+            setVideoUrl(`${server_url}/video/${videoId}`)
+            setStatus("Success! Video generated.")
+            setIsGenerating(false)
+            ws.close()
+          } else {
+            setStatus(data.status || "Processing...")
+          }
+        } catch (e) {
+          console.error("Failed to parse WS message:", e)
+        }
+      }
+
+      ws.onerror = (error) => {
+        console.error("WS Error:", error)
+        setStatus("Connection failed. Please check the server.")
+        setIsGenerating(false)
+      }
+
+      ws.onclose = () => {
+        console.log("WS Connection closed")
+      }
+
     } catch (error) {
-      console.error("Failed to generate story:", error)
-    } finally {
+      console.error("Failed to initiate story generation:", error)
+      setStatus("Error: Could not reach the server.")
       setIsGenerating(false)
     }
   }
@@ -103,21 +137,48 @@ export default function StoryGenerator() {
               </Badge>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
-              <div className="flex-1 min-h-[400px] bg-black rounded-xl border border-border overflow-hidden relative group">
-                <video 
-                  key={videoUrl}
-                  controls 
-                  className="w-full h-full object-contain"
-                  poster="/placeholder-video.jpg"
-                >
-                  <source src={videoUrl} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
+              <div className="flex-1 min-h-[400px] bg-black rounded-xl border border-border overflow-hidden relative group flex items-center justify-center">
+                {videoUrl ? (
+                  <video 
+                    key={videoUrl}
+                    controls 
+                    autoPlay
+                    className="w-full h-full object-contain shadow-2xl"
+                  >
+                    <source src={videoUrl} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950/50 backdrop-blur-sm">
+                    {isGenerating ? (
+                      <div className="flex flex-col items-center gap-6 p-8">
+                        <div className="relative">
+                          <div className="w-20 h-20 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                          <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-primary animate-pulse" />
+                        </div>
+                        <div className="space-y-2 text-center">
+                          <p className="text-primary font-bold text-lg animate-pulse">Mastering Your Story...</p>
+                          <p className="text-muted-foreground text-sm max-w-[200px]">{status}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center p-12 transition-all duration-500 group-hover:scale-105">
+                        <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center mx-auto mb-6 border border-primary/10">
+                          <Video className="w-10 h-10 text-muted-foreground/30" />
+                        </div>
+                        <h3 className="text-foreground/60 font-semibold text-lg mb-2">No Video Generated</h3>
+                        <p className="text-muted-foreground/50 max-w-[240px] text-sm mx-auto">
+                          Enter a description on the left and click generate to begin your cinematic journey.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/10">
                 <p className="text-sm text-center text-primary/80 font-medium italic">
-                  "Visualizing the journey of your narrative..."
+                  {status || "Waiting for your narrative journey to begin..."}
                 </p>
               </div>
             </CardContent>

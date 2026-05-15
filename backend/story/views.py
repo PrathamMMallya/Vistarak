@@ -23,12 +23,21 @@ def serve_default_story(request):
     return JsonResponse({"error": "No default video found on server"}, status=404)
 
 @csrf_exempt
+def story_config(request):
+    """
+    Returns the Story Server configuration from .env
+    """
+    server_url = os.environ.get("STORY_SERVER_URL", "http://127.0.0.1:8001").rstrip('/')
+    ws_url = server_url.replace("http://", "ws://").replace("https://", "wss://")
+    
+    return JsonResponse({
+        "server_url": server_url,
+        "ws_url": f"{ws_url}/ws/progress"
+    })
+
+@csrf_exempt
 def generate_story(request):
     """
-    Dummy endpoint for story generation.
+    Returns the configuration for the frontend to initiate a WS connection.
     """
-    return JsonResponse({
-        "status": "success", 
-        "message": "Story generation triggered",
-        "video_url": "http://localhost:8000/story/preview/"
-    })
+    return story_config(request)
