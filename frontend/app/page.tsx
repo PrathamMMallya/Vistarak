@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Video, FileText, BookOpen, Zap, Mic2, Calculator, Languages, Sparkles, ArrowRight, Film } from "lucide-react"
+import { Video, FileText, BookOpen, Zap, Mic2, Languages, Sparkles, ArrowRight, Film } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const modules = [
@@ -32,14 +32,7 @@ const modules = [
     color: "from-pink-500 to-pink-600",
     href: "/tts",
   },
-  {
-    id: "mathcompute",
-    title: "Math Visualization",
-    description: "Extract, convert, and visualize mathematical equations",
-    icon: Calculator,
-    color: "from-emerald-500 to-emerald-600",
-    href: "/mathcompute",
-  },
+
   {
     id: "manim-visualizer",
     title: "Manim Visualizer",
@@ -122,6 +115,54 @@ export default function Home() {
               </Link>
             )
           })}
+        </div>
+      </div>
+
+      {/* System Methodology Section */}
+      <div className="max-w-6xl mx-auto mt-24 mb-20">
+        <div className="flex flex-col md:flex-row items-end justify-between mb-12 gap-6">
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-bold text-foreground mb-4">Advanced Service Orchestration</h2>
+            <p className="text-muted-foreground">
+              Our platform utilizes a multi-layered AI pipeline where <strong>Whisper-v3 transcription</strong>, 
+              <strong>Vision-LLM OCR</strong>, and <strong>Manim-based procedural animation</strong> converge. 
+              Data flows seamlessly from raw input extraction to high-fidelity multimedia synthesis, 
+              powered by state-of-the-art inference engines.
+            </p>
+          </div>
+          <div className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-sm font-medium">
+            Logical Flow Architecture
+          </div>
+        </div>
+        
+        <div className="glass rounded-3xl p-2 lg:p-4 overflow-hidden shadow-2xl shadow-blue-500/10 border border-white/10 group">
+          <div className="relative aspect-[21/9] w-full rounded-2xl overflow-hidden bg-card/50 flex items-center justify-center">
+            {/* 
+              USER: Save your exported Eraser image as:
+              /frontend/public/images/system-methodology.png
+            */}
+            <img 
+              src="/images/system_methodology.png" 
+              alt="System Methodology Diagram" 
+              className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                if (target.parentElement) {
+                  const placeholder = document.createElement('div');
+                  placeholder.className = "flex flex-col items-center justify-center text-center p-12";
+                  placeholder.innerHTML = `
+                    <div class="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Methodology Diagram Placeholder</h3>
+                    <p class="text-muted-foreground max-w-md">Once you generate the diagram from Eraser, save it to <code>public/images/system_methodology.png</code> to see it here.</p>
+                  `;
+                  target.parentElement.appendChild(placeholder);
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>

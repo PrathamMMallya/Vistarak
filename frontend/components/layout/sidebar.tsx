@@ -3,14 +3,14 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Languages, Video, BookOpen, Zap, Mic2, Calculator, Settings, Home, Film } from "lucide-react"
+import { FileText, Languages, Video, BookOpen, Zap, Mic2, Settings, Home, Film } from "lucide-react"
 
 const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },
   { icon: Video, label: "Video Transcription", href: "/video-transcription" },
   { icon: BookOpen, label: "OCR", href: "/ocr" },
   { icon: Mic2, label: "Text-to-Speech", href: "/tts" },
-  { icon: Calculator, label: "Math Visualizer", href: "/math-visualizer" },
+
   { icon: Settings, label: "Settings", href: "/settings" },
 ]
 

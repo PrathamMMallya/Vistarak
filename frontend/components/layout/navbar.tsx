@@ -2,7 +2,7 @@
 
 import { 
   Bell, User, Search, Menu, 
-  FileText, Languages, Mic, Calculator, Settings, LayoutDashboard, Film 
+  FileText, Languages, Mic, Settings, LayoutDashboard, Film 
 } from "lucide-react"
 import { useState } from "react"
 import Link from "next/link"
@@ -17,7 +17,7 @@ export function Navbar() {
     { icon: FileText, label: "Video Transcription", href: "/video-transcription" },
     { icon: Languages, label: "OCR", href: "/ocr" },
     { icon: Mic, label: "Text-to-Speech", href: "/tts" },
-    { icon: Calculator, label: "Math Visualization", href: "/mathcompute" },
+
     { icon: Film, label: "Manim Visualizer", href: "/manim-visualizer" },
     { icon: Film, label: "Story Generator", href: "/story-generator" },
     { icon: Settings, label: "Settings", href: "/settings" },
